@@ -345,9 +345,6 @@ def make_macho_executable(output, code, data):
     executable = bytes(head + zero + text + start) + binary
     result = executable + bytes([0] * (4096-len(executable)))  # Pad
 
-    with open(f'build/{output}', 'wb') as file:
-        file.write(result)
-
     return result, program
 
 

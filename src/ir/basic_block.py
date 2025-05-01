@@ -1,7 +1,7 @@
 from typing import Optional, Any
 from collections import namedtuple
 
-from src.ir.ir import SIDE_EFFECTS, TERMINATORS, Code
+from src.ir.ir import INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS, Code
 
 Entry = namedtuple('Entry', ('value', 'variable'))
 
@@ -12,7 +12,9 @@ def find(table, v):
 
 
 class Block:
-    def __init__(self, label: str, offset, instructions: list[Code] = None, parameters: list[dict] = None):
+    def __init__(self, label: str, offset, instructions: list[Code] = (), parameters: list[dict] = None):
+        assert all(x.op in INSTRUCTIONS for x in instructions)
+
         self.label        = label
         self.offset       = offset
         self.instructions = instructions or []
@@ -56,7 +58,7 @@ class Block:
         1. Order arguments for commutative instructions in alphabetical order.
         """
         for instruction in self.instructions:
-            if instruction.refs and instruction.op in ('add', 'mul', 'call', 'eq', 'ne'):
+            if instruction.refs and instruction.op in ('add', 'mul', 'eq', 'ne'):
                 instruction.refs = tuple(sorted(instruction.refs))
 
     def to_ssa(self) -> None:
@@ -70,19 +72,18 @@ class Block:
 
         defined = set()
         for i, instruction in enumerate(self.instructions):
-            if instruction.dest:
-                name = instruction.dest
-                if name in defined:
-                    new_name = rename(name)
+            if (old_name := instruction.dest):
+                if old_name in defined:
+                    new_name = rename(old_name)
                     for candidate in self.instructions[i+1:]:
                         if candidate.refs:
-                            candidate.refs = tuple(new_name if x == name else x for x in candidate.refs)
-                        if candidate.dest and candidate.dest == name:
+                            candidate.refs = tuple(new_name if x == old_name else x for x in candidate.refs)
+                        if candidate.dest and candidate.dest == old_name:
                             candidate.dest = new_name
                     defined.add(new_name)
                     instruction.dest = new_name
                 else:
-                    defined.add(name)
+                    defined.add(old_name)
 
 
     def remove_nop(self):
@@ -204,7 +205,8 @@ class Block:
                     dropees.remove(arg)
 
     def __repr__(self):
-        return f"Block(label='{self.label}', arguments={self.use()})"
+        uses = ', '.join(x for x in self.use() if type(x) == str)
+        return f"Block(label='{self.label}', arguments=({uses}))"
 
 
 

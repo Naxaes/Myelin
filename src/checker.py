@@ -24,6 +24,7 @@ class Checker:
         }
         self.user_types = user_types
         self.types = []
+        self.registry = TypeRegistry()
 
     def get_arg(self, block, arg):
         if type(arg) == str:
@@ -60,37 +61,32 @@ class Checker:
         raise RuntimeError(f'Type error between {a} and {b}')
 
     @staticmethod
-    def check(functions, data, constants, user_types):
-        """Local reasoning type checking"""
+    def check(module):
+        functions = module.functions
+        data = module.data
+        constants = module.constants
+        user_types = module.types
         self = Checker(functions, data, constants, user_types)
+        return self.check_()
 
+    def check_(self):
+        """Local reasoning type checking"""
         self.types = {}
         for name, function in self.functions.items():
             self.mapping = { }
             for block in function.blocks:
                 for code in block.instructions:
                     if code.op == 'lit':
-                        assert code.type is not None
-                        index, data = code.args
-                        if type(data) == str:
-                            self.mapping[code.dest] = ArrayType(self.builtins['byte'], len(data))
-                        else:
-                            self.mapping[code.dest] = self.builtins[code.type]
+                        self.infer_lit(code)
                     elif code.op in ('+', '*', '==', '<'):
                         a = self.get_arg(block, code.refs[0])
                         b = self.get_arg(block, code.refs[1])
                         t = self.type_check(a, b)
                         self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '<') else t.name]
                     elif code.op == '.':
-                        a = self.get_arg(block, code.refs[0])
-                        method = code.refs[1]
-                        if isinstance(a, ArrayType):
-                            if method == 'len':
-                                self.mapping[code.dest] = LiteralType(a.size)
-                            else:
-                                assert False, 'Not implemented'
-                        else:
-                            assert False, 'Not implemented'
+                        obj = self.get_arg(block, code.refs[0])
+                        attr = code.refs[1]
+                        self.mapping[code.dest] = obj.get_attribute(attr)
                     elif code.op == 'decl':
                         if code.refs:
                             a = self.get_arg(block, code.refs[0])
@@ -143,7 +139,7 @@ class Checker:
                         self.mapping[code.dest] = PointerType(target)
                     elif code.op == 'as':
                         obj = self.get_arg(block, code.refs[0])
-                        to  = self.builtins[code.refs[1]]
+                        to  = self.builtins[code.type]
                         assert obj.can_coerce_to(to)
                         self.mapping[block.instructions[code.refs[0]].dest] = to
                         self.mapping[code.dest] = to
@@ -160,7 +156,7 @@ class Checker:
                     if function.is_module:
                         continue
                     if len(function.returns) != len(code.refs):
-                        raise RuntimeError(f'Returning wrong amount of arguments. Expected {len(function.returns)}, but got {len(code.refs)}')
+                        raise RuntimeError(f'Returning wrong amount of returns to {function.name}. Expected {len(function.returns)}, but got {len(code.refs)}')
                     for ret, arg in zip(function.returns, code.refs):
                         arg = self.get_arg(block, arg)
                         self.type_check(self.builtins[ret[1]], arg)
@@ -168,3 +164,24 @@ class Checker:
                     assert False, f"Unknown terminator {code}"
             self.types[function.name] = self.mapping
         return self.types
+
+    def infer_lit(self, code):
+        assert code.op == 'lit'
+        assert code.type is not None, "All literals have a type"
+        assert len(code.args) == 2, "Expected index and data"
+
+        index, data = code.args
+        match code.type:
+            case 'str':
+                ty = ArrayType(self.builtins['byte'], len(data))
+                ty = self.registry.intern(ty)
+                self.mapping[code.dest] = ty
+            case 'int':
+                self.mapping[code.dest] = self.builtins[code.type]
+            case 'real':
+                self.mapping[code.dest] = self.builtins[code.type]
+            case _:
+                raise TypeError(f'Unknown type {code}')
+
+
+

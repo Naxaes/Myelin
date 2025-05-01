@@ -474,6 +474,11 @@ class Function:
             program[block.label] = instructions
         return program
 
+    def __repr__(self):
+        parameters = ', '.join(str(x) for x in self.parameters)
+        rets = ', '.join(str(x) for x in self.return_values) or 'void'
+        return f'{self.name}: ({parameters}) -> {rets}'
+
 
 def cprop_transfer(block, in_vals):
     def args_is_known(arg):

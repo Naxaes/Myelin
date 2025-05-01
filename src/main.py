@@ -12,14 +12,23 @@ def main():
 
     source = open(build + name).read()
     tokens = Lexer.lex(source)
-    program, data, constants, user_types = Parser.parse_module(tokens, name)
-    types  = Checker.check(program, data, constants, user_types)
+    module = Parser.parse_module(tokens, name)
+    types  = Checker.check(module)
 
-    code, data = Generator.generate(program, data, constants, types)
+    code, data = Generator.generate(module, types)
 
     machine_code, readable_code = make_macho_executable(name.split('.')[0], code, data)
 
-    print(readable_code)
+    for func in module.functions.values():
+        print(f'{func}')
+        for b in func.blocks:
+            print(f'\t{b}')
+            for instruction in b.instructions:
+                print(f'\t\t{instruction}')
+
+    # print(readable_code)
+    with open(f'build/{name.replace(".sf", "")}', 'wb') as file:
+        file.write(machine_code)
 
 
 

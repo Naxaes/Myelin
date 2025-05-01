@@ -150,6 +150,12 @@ class ArrayType(Type):
         self.element_type = element_type
         self.length = length
 
+    def get_attribute(self, attribute):
+        if attribute == 'len':
+            return LiteralType(self.size)
+        else:
+            raise TypeError(f'No attribute {attribute} on {self}')
+
     def is_subtype_of(self, other: 'Type') -> bool:
         if isinstance(other, PointerType):
             return self.element_type.is_equal(other.pointee)

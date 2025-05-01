@@ -14,14 +14,15 @@ class Builtin:
 
 
 class Module:
-    def __init__(self):
-        self.functions = {}
+    def __init__(self, name, functions, data, constants, types, imports):
+        self.name = name
+        self.functions = functions
         # Static data needed in the executable
-        self.data = {}
+        self.data = data
         # Constants inlined in the code
-        self.constants = {}
-        self.types = {}
-        self.imports = {}
+        self.constants = constants
+        self.types = types
+        self.imports = imports
 
 
 class Parser(TokenStream):
@@ -208,7 +209,7 @@ class Parser(TokenStream):
         while self.has_more():
             self.parse_stmt()
         self.block.terminator = Code('ret')
-        return self.functions, self.data, self.constants, self.types
+        return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
 
     # TODO: Separate declaration and statements, since a declaration is only allowed
     #       within a module or block.
@@ -399,7 +400,7 @@ class Parser(TokenStream):
             self.next(expect=':')
             type = self.next(expect='ident').data.decode()
             self.next_if(expect=',')
-            params[field] = (type, self.push(Code('param', type, dest=field)), i)
+            params[field] = (type, self.push(Code('param', type=type, dest=field)), i)
             i += 1
         self.current.params = params
         returns = []
@@ -420,8 +421,6 @@ class Parser(TokenStream):
     def parse_func_call(self):
         name = self.next(expect='ident')
         func = self.functions.get(name.data.decode(), None)
-        if func is None:
-            raise KeyError(f"'{name.data.decode()} not defined in module '{self.name}'")
 
         self.next(expect='(')
         args = []
@@ -429,6 +428,10 @@ class Parser(TokenStream):
             arg = self.parse_expr()
             args.append(arg)
             self.next_if(',')
+
+        if func is None:
+            return self.push(Code('call', dest=self.implicit_name(), args=(name.data.decode(), ), refs=tuple(args)))
+            # raise KeyError(f"'{name.data.decode()}' not defined in module '{self.name}'")
 
         call = self.push(Code('call', dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
 
@@ -562,7 +565,7 @@ class Parser(TokenStream):
     def parse_cast(self, left):
         _ = self.next(expect='as')
         t = self.next(expect='ident').data.decode()
-        return self.push(Code('as', dest=left, refs=(left, t)))
+        return self.push(Code('as', type=t, dest=left, refs=(left,)))
 
     def parse_number(self):
         value = self.next(expect='number').data

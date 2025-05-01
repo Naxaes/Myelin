@@ -1,3 +1,6 @@
+from type import LiteralType
+
+
 class Generator:
     def __init__(self, functions, data, constants, types):
         # https://devblogs.microsoft.com/oldnewthing/20231204-00/?p=109095
@@ -20,7 +23,11 @@ class Generator:
         return self.types[function.name][code.dest]
 
     @staticmethod
-    def generate(functions, data, constants, types):
+    def generate(module, types):
+        functions = module.functions
+        data = module.data
+        constants = module.constants
+
         self = Generator(functions, data, constants, types)
         for name, function in self.functions.items():
             if len(function.blocks) == 0:
@@ -222,7 +229,7 @@ class Generator:
 
     def generate_get(self, function, block, code):
         t = self.type_of(function, code)
-        # assert isinstance(t, LiteralType), "Other's not implemented"
+        assert isinstance(t, LiteralType), "Other's not implemented"
 
         dst = self.set_reg(code.dest)
         self.add_code('mov', dst, t.value())

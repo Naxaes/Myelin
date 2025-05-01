@@ -3,8 +3,9 @@ from typing import Optional
 from lexer import Token
 
 
-TERMINATORS  = 'br', 'jmp', 'ret'
+TERMINATORS  = 'br', 'jmp', 'ret', 'set'
 SIDE_EFFECTS = 'ret', 'print', 'call', 'alloc', 'free'
+INSTRUCTIONS = ("add", 'sub', 'mul', 'gt', 'lt', 'get', 'lit', 'ref', 'move') + SIDE_EFFECTS + TERMINATORS
 
 
 @dataclass
@@ -20,6 +21,7 @@ class Code:
 
 def c(**kwargs):
     op = kwargs.pop('op')
+    assert op in INSTRUCTIONS
 
     if op in ("add", 'sub', 'mul', 'gt', 'lt', 'get'):
         a, b = kwargs.pop('refs')
