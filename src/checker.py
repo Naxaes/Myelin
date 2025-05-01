@@ -1,0 +1,170 @@
+from type import *
+
+
+# -- TODO --
+#   * Global type checking: https://www.youtube.com/watch?v=fDTt_uo0F-g&t=3343s&ab_channel=ChariotSolutions
+
+
+class Checker:
+    def __init__(self, functions, data, constants, user_types):
+        self.functions = functions
+        self.data = data
+        self.constants = constants
+        self.mapping = {}
+        self.builtins = {
+            None:       PrimitiveType(name='inferred', size=0),
+            'byte':     PrimitiveType(name='byte',  size=1),
+            'int':      PrimitiveType(name='int',  size=8),
+            'real':     PrimitiveType(name='real', size=8),
+            'bool':     PrimitiveType(name='bool', size=1),
+            'str':      PointerType(PrimitiveType(name='byte',  size=1)),
+            'ptr':      PointerType(PrimitiveType('void', 8)),
+            'void*':    PointerType(PrimitiveType('void', 8)),
+            'byte*':    PointerType(PrimitiveType(name='byte',  size=1)),
+        }
+        self.user_types = user_types
+        self.types = []
+
+    def get_arg(self, block, arg):
+        if type(arg) == str:
+            if arg in self.mapping:
+                return self.mapping[arg]
+            else:
+                value = self.constants[arg]
+                if type(value) == int:
+                    return self.builtins['int']
+                else:
+                    assert False, 'Not implemented'
+        else:
+            return self.mapping[block.instructions[arg].dest]
+
+    def type_check(self, a, b):
+        if a.name == 'inferred' and b.name == 'inferred':
+            raise RuntimeError(f'No types for {a} and {b}')
+        if a.name == 'inferred':
+            return b
+        if b.name == 'inferred':
+            return a
+        if b.is_subtype_of(a):
+            return a
+
+        # TODO: Remove these hacks.
+        if ((a.name == 'void*' and b.name == 'str')
+                or (b.name == 'void*' and a.name == 'str')
+                or (a.name == 'void*' and b.name == 'byte*')
+                or (a.name == 'byte*' and b.name.startswith('byte['))
+        ):
+            return b
+        if isinstance(a, PointerType) and b.name == 'int':
+            return a
+        raise RuntimeError(f'Type error between {a} and {b}')
+
+    @staticmethod
+    def check(functions, data, constants, user_types):
+        """Local reasoning type checking"""
+        self = Checker(functions, data, constants, user_types)
+
+        self.types = {}
+        for name, function in self.functions.items():
+            self.mapping = { }
+            for block in function.blocks:
+                for code in block.instructions:
+                    if code.op == 'lit':
+                        assert code.type is not None
+                        index, data = code.args
+                        if type(data) == str:
+                            self.mapping[code.dest] = ArrayType(self.builtins['byte'], len(data))
+                        else:
+                            self.mapping[code.dest] = self.builtins[code.type]
+                    elif code.op in ('+', '*', '==', '<'):
+                        a = self.get_arg(block, code.refs[0])
+                        b = self.get_arg(block, code.refs[1])
+                        t = self.type_check(a, b)
+                        self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '<') else t.name]
+                    elif code.op == '.':
+                        a = self.get_arg(block, code.refs[0])
+                        method = code.refs[1]
+                        if isinstance(a, ArrayType):
+                            if method == 'len':
+                                self.mapping[code.dest] = LiteralType(a.size)
+                            else:
+                                assert False, 'Not implemented'
+                        else:
+                            assert False, 'Not implemented'
+                    elif code.op == 'decl':
+                        if code.refs:
+                            a = self.get_arg(block, code.refs[0])
+                            t = self.builtins[code.type]
+                            self.mapping[code.dest] = self.type_check(a, t)
+                        else:
+                            assert False, "Not implemented"
+                    elif code.op == 'assign':
+                        a = self.get_arg(block, code.refs[0])
+                        b = self.get_arg(block, code.refs[1])
+                        self.type_check(a, b)
+                    elif code.op == 'label':
+                        pass
+                    elif code.op == 'call':
+                        f = code.args[0]
+                        args = code.refs[:]
+                        if len(f.params) != len(args):
+                            raise RuntimeError(f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
+                        for i, (name, t) in enumerate(f.params.items()):
+                            a = self.get_arg(block, args[i])
+                            self.type_check(self.builtins[t[0]], a)
+                        self.mapping[code.dest] = self.builtins[f.returns[0][1] if len(f.returns) > 0 else None]
+                    elif code.op == '_':
+                        f = code.args[0]
+                        self.mapping[code.dest] = self.builtins[f.returns[code.args[1]][1]]
+                    elif code.op == 'param':
+                        self.mapping[code.dest] = self.builtins[code.type]
+                    elif code.op == 'field':
+                        self.mapping[code.dest] = self.builtins[code.type]
+                    elif code.op == 'init':
+                        name = 'temp'
+                        assert len(code.type.keys()) == len(code.refs)
+                        fields = []
+                        for n, arg in zip(code.type, code.refs):
+                            actual = self.get_arg(block, arg)
+                            expect = self.builtins[code.type[n][0]]
+                            fields.append(self.type_check(expect, actual))
+                        self.mapping[code.dest] = StructType(name, fields)
+                    elif code.op == 'syscall':
+                        self.mapping[code.dest] = self.builtins[None]
+                    elif code.op == 'index':
+                        target = self.get_arg(block, code.refs[0])
+                        if target.name == 'str' or target.name == 'byte*':
+                            self.mapping[code.dest] = self.builtins['int']
+                        else:
+                            assert isinstance(target, PointerType), f"Cannot index a '{target}'"
+                            self.mapping[code.dest] = target.pointee
+                    elif code.op == '&':
+                        target = self.get_arg(block, code.refs[0])
+                        self.mapping[code.dest] = PointerType(target)
+                    elif code.op == 'as':
+                        obj = self.get_arg(block, code.refs[0])
+                        to  = self.builtins[code.refs[1]]
+                        assert obj.can_coerce_to(to)
+                        self.mapping[block.instructions[code.refs[0]].dest] = to
+                        self.mapping[code.dest] = to
+                        code.dest = block.instructions[code.refs[0]].dest
+                    else:
+                        assert False, f'Unknown instruction {code}'
+
+                code = block.terminator
+                if code.op == 'br':
+                    pass
+                elif code.op == 'jmp':
+                    pass
+                elif code.op == 'ret':
+                    if function.is_module:
+                        continue
+                    if len(function.returns) != len(code.refs):
+                        raise RuntimeError(f'Returning wrong amount of arguments. Expected {len(function.returns)}, but got {len(code.refs)}')
+                    for ret, arg in zip(function.returns, code.refs):
+                        arg = self.get_arg(block, arg)
+                        self.type_check(self.builtins[ret[1]], arg)
+                else:
+                    assert False, f"Unknown terminator {code}"
+            self.types[function.name] = self.mapping
+        return self.types

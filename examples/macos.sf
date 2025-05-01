@@ -1,0 +1,61 @@
+STDIN:  0
+STDOUT: 1
+STDERR: 2
+
+# ---- MACOS_SYS ----
+# https://github.com/rewired-gh/macos-system-call-table/blob/main/arm64-system-calls.md
+SYS_EXIT:   0x2000001
+SYS_READ:   0x2000003
+SYS_WRITE:  0x2000004
+SYS_OPEN:   0x2000005
+SYS_CLOSE:  0x2000006
+SYS_STAT:   0x200000C
+SYS_FSTAT:  0x200000D
+SYS_LSTAT:  0x200000E
+SYS_MMAP:   0x20000C5
+SYS_MUNMAP: 0x2000049
+SYS_PIPE:   0x2000029
+
+read: (fd: int, buffer: ptr, count: int) -> int {
+    return @syscall(SYS_READ, fd, buffer, count)
+}
+
+write: (fd: int, buffer: ptr, count: int) -> int {
+    return @syscall(SYS_WRITE, fd, buffer, count)
+}
+
+open: (path: str, flags: int, mode: int) -> int {
+    return @syscall(SYS_OPEN, path, flags, mode)
+}
+
+close: (fd: int) -> int {
+    return @syscall(SYS_CLOSE, fd)
+}
+
+exit: (code: int) -> int {
+    return @syscall(SYS_EXIT, code)
+}
+
+stat: (path: str, statbuf: ptr) -> int {
+    return @syscall(SYS_STAT, path, statbuf)
+}
+
+fstat: (fd: int, statbuf: ptr) -> int {
+    return @syscall(SYS_FSTAT, fd, statbuf)
+}
+
+lstat: (path: str, statbuf: ptr) -> int {
+    return @syscall(SYS_LSTAT, path, statbuf)
+}
+
+# mmap: (addr: ptr, length: int, prot: int, flags: int, fd: int, offset: int) -> ptr {
+#    return @syscall(SYS_MMAP, addr, length, prot, flags, fd, offset)
+#}
+
+munmap: (addr: ptr, length: int) -> int {
+    return @syscall(SYS_MUNMAP, addr, length)
+}
+
+pipe: (fds: ptr) -> int {
+    return @syscall(SYS_PIPE, fds)
+}

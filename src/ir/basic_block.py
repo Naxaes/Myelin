@@ -1,0 +1,378 @@
+from typing import Optional, Any
+from collections import namedtuple
+
+from src.ir.ir import SIDE_EFFECTS, TERMINATORS, Code
+
+Entry = namedtuple('Entry', ('value', 'variable'))
+
+def find(table, v):
+    for i, entry in table.items():
+        if entry.value == v:
+            return i
+
+
+class Block:
+    def __init__(self, label: str, offset, instructions: list[Code] = None, parameters: list[dict] = None):
+        self.label        = label
+        self.offset       = offset
+        self.instructions = instructions or []
+        self.terminator   = instructions[-1] if instructions else None
+        self.parameters   = parameters or []
+        assert self.terminator.op in TERMINATORS if instructions else True
+
+    def gen(self) -> set[str]:
+        """
+        The set of all variables defined to in this basic block.
+        Example:
+            a := x + y      # 'a' is defined
+            b := a + z      # 'b' is defined
+            c := b + a      # 'c' is defined
+            ----
+            { 'a', 'b', 'c' }
+        """
+        return { i.dest for i in self.instructions if i.dest is not None }
+
+    def use(self) -> set[str]:
+        """
+        The set of all variables read from, unless overridden, in this basic block.
+        I.e. uses of in-variables.
+        Example:
+            a := x + y      # 'x', 'y' is used
+            b := a + z      # 'z' is used, 'a' is not used as it's defined in this block
+            c := b + a      # 'a' and 'b' is not used as they're defined in this block
+            ----
+            { 'x', 'y', 'z' }
+        """
+        defined = set()
+        used: set[str] = set()
+        for i in self.instructions:
+            used.update(v for v in i.refs if v not in defined)
+            if i.dest:
+                defined.add(i.dest)
+        return used
+
+    def canonicalize(self) -> None:
+        """
+        1. Order arguments for commutative instructions in alphabetical order.
+        """
+        for instruction in self.instructions:
+            if instruction.args and instruction.op in ('add', 'mul', 'call', 'eq', 'ne'):
+                instruction.args = tuple(sorted(instruction.args))
+
+    def to_ssa(self) -> None:
+        def rename(x):
+            if "'" in x:
+                name, version = x.split("'")
+                version = str(int(version) + 1)
+                return name + "'" + version
+            else:
+                return x + "'0"
+
+        defined = set()
+        for i, instruction in enumerate(self.instructions):
+            if instruction.dest:
+                name = instruction.dest
+                if name in defined:
+                    new_name = rename(name)
+                    for candidate in self.instructions[i+1:]:
+                        if candidate.args:
+                            candidate.args = tuple(new_name if x == name else x for x in candidate.args)
+                        if candidate.dest and candidate.dest == name:
+                            candidate.dest = new_name
+                    defined.add(new_name)
+                    instruction.dest = new_name
+                else:
+                    defined.add(name)
+
+
+    def remove_nop(self):
+        self.instructions = [i for i in self.instructions if i.op != 'nop']
+
+    def lvn(self, table: dict[int, Entry], environment: dict[str, int]) -> tuple[dict[int, Entry], dict[str, int]]:
+        table = table.copy()
+        environment = environment.copy()
+        value: tuple[str, Any, Any]
+
+        for instruction in self.instructions:
+            if instruction.dest:
+                name, args = instruction.dest, instruction.args
+                if instruction.op == 'lit':
+                    value = (instruction.op, instruction.args[0], None)
+                    if (identical := find(table, value)) is not None:
+                        # If we found an identical value, we'll use that value instead of this, so we can delete it.
+                        instruction.op = 'nop'
+                        environment[name] = identical
+                    else:
+                        environment[name] = len(table)
+                        table[len(table)] = Entry(value, name)
+                elif instruction.op in ('ref', 'move', 'alloc'):
+                    value = (instruction.op, environment[args[0]], None)
+                    instruction.args = (table[value[1]].variable,)
+                    environment[name] = len(table)
+                    table[len(table)] = Entry(value, name)
+                else:
+                    value = (instruction.op, environment[args[0]], environment[args[1]])
+                    if (identical := find(table, value)) is not None:
+                        # If we found an identical value, we'll use that value instead of this, so we can delete it.
+                        instruction.op = 'nop'
+                        environment[name] = identical
+                    else:
+                        print(f'Found duplicate value for {name}')
+                        instruction.args = (table[value[1]].variable, table[value[2]].variable)
+                        environment[name] = len(table)
+                        table[len(table)] = Entry(value, name)
+            elif instruction.args:
+                instruction.args = tuple(table[environment[arg]].variable for arg in instruction.args)
+
+        self.remove_nop()
+
+        return table, environment
+
+    def dce(self, keep: Optional[set[str]] = None):
+        """
+        Removes all unused code.
+        :param keep: Variables used after this basic block, i.e. variables not to be removed.
+        """
+        used: set[str] = (keep and keep.copy()) or set()
+        for i in reversed(self.instructions):
+            if i.op in SIDE_EFFECTS:
+                # All instructions with side effects must be kept
+                used.update(i.args)
+            elif i.dest and i.dest not in used or i.op == 'nop':
+                # Instructions that haven't been used can be removed
+                self.instructions.remove(i)
+            elif i.args:
+                used.update(i.args)
+
+    def borrow_check(self, loans: dict[str, set[str]], live_variables: set[str]) -> dict[str, set[str]]:
+        """
+
+        :param loans: A mapping from a variable being loaned to the loaners.
+        :param live_variables: A set of variables whose definition is active in the block.
+        :return: A dictionary of the current active loans out of this block
+        """
+        loaned_variables = {a: b.intersection(live_variables) for a, b in loans.items()}
+        loaned_variables = { a: b for a, b in loaned_variables.items() if b }
+        print(f'[START] Block: {self.label} | loans: {loaned_variables} | reaching: {live_variables}')
+        for instruction in self.instructions:
+            if (name := instruction.dest or '') in loaned_variables:
+                loaned_by = loaned_variables[name]
+                print(f'Modifying variable {name} while loaned by {loaned_by}')
+                raise RuntimeError(f'Modifying variable {name} while loaned by {loaned_by}')
+
+            if instruction.op == 'ref':
+                arg = instruction.refs[0]
+                if arg in loaned_variables:
+                    loaned_variables[arg].add(instruction.dest)
+                    print(f'{arg} was loaned by {instruction.dest} also: loans = {loaned_variables}')
+                else:
+                    loaned_variables[arg] = {instruction.dest}
+                    print(f'{arg} was loaned by {instruction.dest}: loans = {loaned_variables}')
+            elif instruction.op == 'move':
+                arg = instruction.refs[0]
+                name = instruction.dest
+                for key, values in list(loaned_variables.items()):
+                    if arg in values:
+                        if arg in loaned_variables:
+                            loaned_variables[arg].add(name)
+                            print(f'{arg} was taken by {name} also: loans = {loaned_variables}')
+                        else:
+                            for a, b in list(loaned_variables.items()):
+                                if arg in b:
+                                    b.remove(arg)
+                                    b.add(name)
+                                else:
+                                    assert False
+                            # loaned_variables[arg] = {name}
+                            print(f'{arg} was taken by {name}: loans = {loaned_variables}')
+                    # if name in values:
+                    #     loaned_variables[key].remove(name)
+                    #     if not loaned_variables[key]:
+                    #         print(f'Loan of {key} by {name} was removed')
+                    #         del loaned_variables[key]
+
+        print(f'[STOP] Block: {self.label} | loans: {loaned_variables} | reaching: {live_variables}')
+        return loaned_variables
+
+    def check_drops(self, dropees: set[str]):
+        for instruction in self.instructions:
+            if instruction.op == 'alloc':
+                dropees.add(instruction.dest)
+            elif instruction.op == 'free':
+                arg = instruction.args[0]
+                if arg in dropees:
+                    dropees.remove(arg)
+
+    def __repr__(self):
+        return f"Block(label='{self.label}', arguments={self.use()})"
+
+
+
+from src.ir.ir import c
+
+import unittest
+
+class TestBasicBlock(unittest.TestCase):
+
+    def test_use(self):
+        """
+        a := x + y      # 'x', 'y' is used
+        b := a + z      # 'z' is used, 'a' is not used as it's defined in this block
+        c := b + a      # 'a' and 'b' is not used as they're defined in this block
+        ----
+        { 'x', 'y', 'z' }
+        """
+        instructions = [
+            c(op="add", dest="a", args=("x", "y")),
+            c(op="add", dest="b", args=("a", "z")),
+            c(op="add", dest="c", args=("a", "b")),
+        ]
+        block = Block('test', 0, instructions)
+        used = block.use()
+        self.assertEqual(used, {'x', 'y', 'z'})
+
+    def test_dce_remove_dead_code(self):
+        instructions = [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="lit", dest="c", args=(1, )),
+            c(op="add", dest="d", args=("a", "b")),
+            c(op="add", dest="e", args=("c", "d")),
+            c(op="print", args=("d", ))
+        ]
+        block = Block('test', 0, instructions)
+        block.dce()
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="add", dest="d", args=("a", "b")),
+            c(op="print", args=("d", ))
+        ])
+
+    def test_dce_dont_remove_reuse_of_variable(self):
+        instructions = [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="add", dest="c", args=("a", "b")),
+            c(op="lit", dest="a", args=(3, )),
+            c(op="add", dest="d", args=("a", "c")),
+            c(op="print", args=("d", ))
+        ]
+        block = Block('test', 0, instructions)
+        block.dce()
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="add", dest="c", args=("a", "b")),
+            c(op="lit", dest="a", args=(3, )),
+            c(op="add", dest="d", args=("a", "c")),
+            c(op="print", args=("d", ))
+        ])
+
+    def test_dce_with_args(self):
+        instructions = [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="lit", dest="c", args=(1, )),
+            c(op="add", dest="d", args=("a", "b")),
+            c(op="add", dest="e", args=("c", "d")),
+            c(op="lit", dest="f", args=(1, )),
+            c(op="print", args=("d", ))
+        ]
+        block = Block('test', 0, instructions)
+        block.dce(keep={"c", "f"})
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="lit", dest="b", args=(2, )),
+            c(op="lit", dest="c", args=(1, )),
+            c(op="add", dest="d", args=("a", "b")),
+            c(op="lit", dest="f", args=(1, )),
+            c(op="print", args=("d", ))
+        ])
+
+    def test_lvn_remove_duplicate_values(self):
+        instructions = [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="lit", dest="b", args=(4, )),
+            c(op="add", dest="sum1", args=("a", "b")),
+            c(op="add", dest="sum2", args=("a", "b")),
+            c(op="mul", dest="prod", args=("sum1", "sum2")),
+            c(op="mul", dest="x", args=("sum1", "sum2")),
+            c(op="print", args=("x", ))
+        ]
+        block = Block('test', 0, instructions)
+        block.lvn({}, {})
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(4, )),
+            c(op="add", dest="sum1", args=("a", "a")),
+            c(op="mul", dest="prod", args=("sum1", "sum1")),
+            c(op="print", args=("prod", ))
+        ])
+
+    def test_lvn_with_overwritten_variable(self):
+        instructions = [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="lit", dest="b", args=(1, )),
+            c(op="add", dest="x", args=("a", "b")),   # Should replace b with a
+            c(op="print", args=("x", )),
+            c(op="lit", dest="x", args=(3, )),          # Should be renamed to x'
+            c(op="add", dest="y", args=("a", "b")),   # Should be replaced by x
+            c(op="add", dest="z", args=("x", "y")),   # Should replace x to x' and y to x
+            c(op="print", args=("z", ))
+        ]
+        block = Block('test', 0, instructions)
+        block.to_ssa()
+        block.lvn({}, {})
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="add", dest="x", args=("a", "a")),
+            c(op="print", args=("x", )),
+            c(op="lit", dest="x'0", args=(3, )),
+            c(op="add", dest="z", args=("x'0", "x")),
+            c(op="print", args=("z", ))
+        ])
+
+    def test_lvn_with_overwritten_variable_multiple_times(self):
+        instructions = [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="lit", dest="a", args=(1, )),           # Should be removed
+            c(op="add", dest="a", args=("a", "a")),      # Should be renamed to a''
+            c(op="print", args=("a", )),                 # Should be replaced by a''
+            c(op="lit", dest="a", args=(3, )),           # Should be renamed to a'''
+            c(op="add", dest="a", args=("a", "a")),      # Should be replaced by a''' and a''' and renamed to a''''
+            c(op="print", args=("a", ))                  # Should be replaced by a''''
+        ]
+        block = Block('test', 0, instructions)
+        block.to_ssa()
+        block.lvn({}, {})
+        print(*block.instructions, sep='\n')
+        self.assertEqual(block.instructions, [
+            c(op="lit", dest="a", args=(1, )),
+            c(op="add", dest="a'1", args=("a", "a")),
+            c(op="print", args=("a'1", )),
+            c(op="lit", dest="a'2", args=(3, )),
+            c(op="add", dest="a'3", args=("a'2", "a'2")),
+            c(op="print", args=("a'3", ))
+        ])
+
+    def test_borrowing(self):
+        """
+        a := malloc 22
+        b := ref a      # 'a' is immutably borrowed
+        print b         # Ok
+        a += 1          # 'a' is mutated, but 'b' is not borrowed
+        """
+        instructions = [
+            c(op="lit", dest="one", args=(1, )),
+            c(op="lit", dest="x", args=(22, )),
+            c(op="lit", dest="y", args=(44, )),
+            c(op="ref", dest="p", args=("x", )),
+            c(op="add", dest="y", args=("y", "one")),
+            c(op="ref", dest="q", args=("y", )),
+        ]
+        block = Block('test', 0, instructions)
+        loans = block.borrow_check({}, set())
+        print(loans)
+
+if __name__ == '__main__':
+    unittest.main()

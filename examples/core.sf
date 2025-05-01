@@ -1,0 +1,15 @@
+copy: (destination: str, source: str, size: int) {
+	i := 0
+	while (i < size) {
+		destination[i] = source[i]
+		i = i + 1
+	}
+	i = 0
+}
+
+
+# TODO: Conditional import depending on OS
+import * from macos
+print: (message: str, size: int) -> int {
+    return write(STDOUT, message, size)
+}
