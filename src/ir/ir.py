@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from lexer import Token
+from src.lexer import Token
 
 
 TERMINATORS  = 'br', 'jmp', 'ret', 'set'
