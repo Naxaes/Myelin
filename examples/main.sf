@@ -23,12 +23,14 @@ foo: () -> int, int {
 	return 1, 22
 }
 
-x, y := foo()
+# x, y := foo()
 
 
 Thing: struct {
+	x: int
 	a: int
 	b: str
+	y: int
 }
-thing := Thing { a=8, b="Kaboom\n\0" }
+thing := Thing { x=1, a=8, b="Kaboom\n\0", y=1 }
 print(thing.b, thing.a)

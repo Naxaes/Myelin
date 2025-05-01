@@ -249,7 +249,7 @@ class Generator:
                     break
 
             dst = self.set_reg(code.dest)
-            self.code += f'\tmov {dst}, [rsp + {thing_ty.size - offset}]\n'
+            self.code += f'\tmov {dst}, [rsp + {thing_ty.size - offset}]\t; {code.refs[0]}.{code.refs[1]}  ({thing_ty.name}.{ty})\n'
             self.code += '\n'
         else:
             assert isinstance(ty, LiteralType), "Other's not implemented"

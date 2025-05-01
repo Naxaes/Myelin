@@ -457,7 +457,7 @@ class Parser(TokenStream):
             fields[field_name] = (field_type, field_name, i)
             i += 1
 
-        self.types[name] = fields
+        self.types[name] = {'__name__': name, **fields}
         return 'struct'
 
     def parse_initializer(self):
