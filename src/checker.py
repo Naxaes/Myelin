@@ -119,11 +119,11 @@ class Checker:
                     elif code.op == 'init':
                         name = 'temp'
                         assert len(code.type.keys()) == len(code.refs)
-                        fields = []
+                        fields = {}
                         for n, arg in zip(code.type, code.refs):
                             actual = self.get_arg(block, arg)
                             expect = self.builtins[code.type[n][0]]
-                            fields.append(self.type_check(expect, actual))
+                            fields[n] = self.type_check(expect, actual)
                         self.mapping[code.dest] = StructType(name, fields)
                     elif code.op == 'syscall':
                         self.mapping[code.dest] = self.builtins[None]

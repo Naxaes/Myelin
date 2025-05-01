@@ -1,4 +1,4 @@
-from type import LiteralType
+from type import LiteralType, Type, StructType
 
 
 class Generator:
@@ -19,7 +19,7 @@ class Generator:
 
         self.code = ''
 
-    def type_of(self, function, code):
+    def type_of(self, function, code) -> Type:
         return self.types[function.name][code.dest]
 
     @staticmethod
@@ -59,7 +59,16 @@ class Generator:
                     elif code.op == 'field':
                         self.generate_decl(function, block, code)
                     elif code.op == 'init':
-                        self.generate_decl(function, block, code)
+                        name = code.refs[0]
+                        name = name if type(name) == str else block.instructions[name].dest
+                        ty   = self.type_of(function, code)
+                        self.code += f'\tsub rsp, {ty.size}\n'
+                        for i, ref in enumerate(code.refs, start=1):
+                            name = ref if type(ref) == str else block.instructions[ref].dest
+                            src  = self.consume_reg(name)
+                            self.code += f'\tmov [rsp + {ty.size - 8*i}], {src}\n'
+                        dst = self.set_reg(code.dest)
+                        self.code += f'\tmov {dst}, rsp\n'
                     elif code.op == 'syscall':
                         self.generate_syscall(function, block, code)
                     elif code.op == 'index':
@@ -208,9 +217,10 @@ class Generator:
 
         name = code.refs[0]
         name = name if type(name) == str else block.instructions[name].dest
+        ty = self.type_of(function, code)
         src = self.consume_reg(name)
         dst = self.set_reg(code.dest)
-        self.code += f'\t; {code.dest} ({dst}) : {self.type_of(function, code)} = {name}\n\n'
+        self.code += f'\t; {code.dest} ({dst}) : {ty} = {name}\n\n'
         if dst != src:
             self.add_code('mov', dst, src)
         self.vars[code.dest] = dst
@@ -228,13 +238,26 @@ class Generator:
         assert False, 'This requires that we put lvalues into memory'
 
     def generate_get(self, function, block, code):
-        t = self.type_of(function, code)
-        assert isinstance(t, LiteralType), "Other's not implemented"
+        thing_ty = self.types[function.name][code.refs[0]]
+        ty = self.type_of(function, code)
+        if isinstance(thing_ty, StructType):
 
-        dst = self.set_reg(code.dest)
-        self.add_code('mov', dst, t.value())
-        self.code += '\n'
-        # assert False, 'This requires that we put lvalues into memory'
+            offset = 0
+            for n, f in thing_ty.fields.items():
+                offset += f.size
+                if n == code.refs[1]:
+                    break
+
+            dst = self.set_reg(code.dest)
+            self.code += f'\tmov {dst}, [rsp + {thing_ty.size - offset}]\n'
+            self.code += '\n'
+        else:
+            assert isinstance(ty, LiteralType), "Other's not implemented"
+
+            dst = self.set_reg(code.dest)
+            self.add_code('mov', dst, ty.value())
+            self.code += '\n'
+            # assert False, 'This requires that we put lvalues into memory'
 
     def generate_assign(self, function, block, code):
         name_a = code.refs[0]

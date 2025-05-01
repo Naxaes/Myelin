@@ -24,3 +24,11 @@ foo: () -> int, int {
 }
 
 x, y := foo()
+
+
+Thing: struct {
+	a: int
+	b: str
+}
+thing := Thing { a=8, b="Kaboom\n\0" }
+print(thing.b, thing.a)

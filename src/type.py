@@ -184,11 +184,14 @@ class FunctionType(Type):
 
 # --- Struct Type ---
 class StructType(Type):
-    def __init__(self, name: str, fields: List[Type]):
-        total_size = sum(f.size for f in fields)
+    def __init__(self, name: str, fields: dict[str, Type]):
+        total_size = sum(ty.size for name, ty in fields.items())
         super().__init__(name=f"struct {name}", size=total_size)
         self.fields = fields
         self.methods: Dict[str, FunctionType] = {}
+
+    def get_attribute(self, attribute):
+        return self.fields[attribute]
 
     def add_method(self, name: str, fn_type: FunctionType):
         self.methods[name] = fn_type
