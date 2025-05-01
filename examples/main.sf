@@ -17,3 +17,10 @@ message[12 + i]     = 10
 message[12 + i + 1] = 0
 
 print(message, 23)
+
+
+foo: () -> int, int {
+	return 1, 22
+}
+
+x, y := foo()

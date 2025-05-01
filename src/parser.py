@@ -12,6 +12,11 @@ class Builtin:
         self.params = params
         self.blocks = []
 
+    def __repr__(self):
+        parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
+        rets = ', '.join(ty for name, ty in self.returns)
+        return f'{self.name}: ({parameters}) -> {rets or "void"}'
+
 
 class Module:
     def __init__(self, name, functions, data, constants, types, imports):
@@ -430,8 +435,8 @@ class Parser(TokenStream):
             self.next_if(',')
 
         if func is None:
-            return self.push(Code('call', dest=self.implicit_name(), args=(name.data.decode(), ), refs=tuple(args)))
-            # raise KeyError(f"'{name.data.decode()}' not defined in module '{self.name}'")
+            # return self.push(Code('call', dest=self.implicit_name(), args=(name.data.decode(), ), refs=tuple(args)))
+            raise KeyError(f"'{name.data.decode()}' not defined in module '{self.name}'")
 
         call = self.push(Code('call', dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
 

@@ -25,6 +25,7 @@ def main():
             print(f'\t{b}')
             for instruction in b.instructions:
                 print(f'\t\t{instruction}')
+            print(f'\t\t{b.terminator}')
 
     # print(readable_code)
     with open(f'build/{name.replace(".sf", "")}', 'wb') as file:

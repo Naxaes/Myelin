@@ -22,8 +22,8 @@ class Function:
                  is_main=False
      ):
         self.name = name
-        self.parameters = parameters
-        self.return_values = return_values or []
+        self.params = parameters or {}
+        self.returns = return_values or []
         self.blocks = blocks or []
         self.predecessors = predecessors or {}
         self.successors = successors or {}
@@ -62,7 +62,7 @@ class Function:
     def lvn(self) -> None:
         table: dict[int, Entry] = {}
         environment: dict[str, int] = {}
-        for param in self.parameters:
+        for param in self.params:
             environment[param['name']] = len(table)
             table[len(table)] = (Entry(None, param['name']))
 
@@ -176,7 +176,7 @@ class Function:
 
         all_variables = set().union(*[b.gen() for b in self.blocks])
 
-        parameters = set((v['name'], -1) for v in self.parameters)
+        parameters = set((v['name'], -1) for v in self.params)
         initial_state = set((v, None) for v in all_variables).union(parameters)
         return self.analyze(initial_state, initial_state, merge=merge, transfer=trans, forward=True)
 
@@ -246,7 +246,7 @@ class Function:
         """
         Interval = tuple[int, int]
         default = (-2 ** 31, 2 ** 31)
-        init = {v['name']: default for v in self.parameters}
+        init = {v['name']: default for v in self.params}
         predecessors, successors = self.predecessors, self.successors
 
         def merge(block: Block, preds: list[Block]):
@@ -475,9 +475,9 @@ class Function:
         return program
 
     def __repr__(self):
-        parameters = ', '.join(str(x) for x in self.parameters)
-        rets = ', '.join(str(x) for x in self.return_values) or 'void'
-        return f'{self.name}: ({parameters}) -> {rets}'
+        parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
+        rets = ', '.join(ty for name, ty in self.returns)
+        return f'{self.name}: ({parameters}) -> {rets or "void"}'
 
 
 def cprop_transfer(block, in_vals):
