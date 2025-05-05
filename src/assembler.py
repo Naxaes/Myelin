@@ -36,7 +36,7 @@ align 4096
 memory:
 .ptr: dq 0                          ; Offset (in bytes)
 .start:
-    times 128 db 100, 101, 98, 117, 103, 109, 101, 109
+    times 128 db 100, 101, 98, 117, 103, 109, 101, 109      ; 'debugmem'
 .end:
 """
 PAD_DATA = """

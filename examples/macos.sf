@@ -63,9 +63,9 @@ lstat: (path: str, statbuf: ptr) -> int {
     return @syscall(SYS_LSTAT, path, statbuf)
 }
 
-# mmap: (addr: ptr, length: int, prot: int, flags: int, fd: int, offset: int) -> ptr {
-#    return @syscall(SYS_MMAP, addr, length, prot, flags, fd, offset)
-#}
+mmap: (addr: ptr, length: int, prot: int, flags: int, fd: int, offset: int) -> ptr {
+    return @syscall(SYS_MMAP, addr, length, prot, flags, fd, offset)
+}
 
 munmap: (addr: ptr, length: int) -> int {
     return @syscall(SYS_MUNMAP, addr, length)

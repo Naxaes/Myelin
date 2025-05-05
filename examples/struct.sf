@@ -1,7 +1,6 @@
 import * from macos
 import * from core
 
-
 Foo: struct {
 	bar: int
 	baz: str
@@ -9,11 +8,9 @@ Foo: struct {
 
 foo := Foo { bar=11, baz="Hello ted!\n" }
 
-
 display_foo: (obj: Foo) -> int {
 	print(obj.baz, obj.bar)
 	return obj.bar + 10
 }
-
 
 display_foo(foo)
