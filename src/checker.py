@@ -25,6 +25,10 @@ class Checker:
         self.user_types = user_types
         self.types = []
         self.registry = TypeRegistry()
+        for n, t in self.user_types.items():
+            if type(t) == dict:
+                self.user_types[n] = StructType(n, {x: self.builtins[y[0]] for x, y in t.items() if x != '__name__'})
+
 
     def get_arg(self, block, arg):
         if type(arg) == str:
@@ -107,13 +111,13 @@ class Checker:
                             raise RuntimeError(f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
                         for i, (name, t) in enumerate(f.params.items()):
                             a = self.get_arg(block, args[i])
-                            self.type_check(self.builtins[t[0]], a)
+                            self.type_check(self.builtins.get(t[0]) or self.user_types[t[0]], a)
                         self.mapping[code.dest] = self.builtins[f.returns[0][1] if len(f.returns) > 0 else None]
                     elif code.op == '_':
                         f = code.args[0]
                         self.mapping[code.dest] = self.builtins[f.returns[code.args[1]][1]]
                     elif code.op == 'param':
-                        self.mapping[code.dest] = self.builtins[code.type]
+                        self.mapping[code.dest] = self.builtins.get(code.type) or self.user_types[code.type]
                     elif code.op == 'field':
                         self.mapping[code.dest] = self.builtins[code.type]
                     elif code.op == 'init':

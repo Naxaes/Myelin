@@ -248,8 +248,9 @@ class X86_64_Generator:
                 if n == code.refs[1]:
                     break
 
+            src = self.peek_reg(code.refs[0])
             dst = self.set_reg(code.dest)
-            self.code += f'\tmov {dst}, [rsp + {thing_ty.size - offset}]\t; {code.refs[0]}.{code.refs[1]}  ({thing_ty.name}.{ty})\n'
+            self.code += f'\tmov {dst}, [{src} + {thing_ty.size - offset}]\t; {code.refs[0]}.{code.refs[1]}  ({thing_ty.name}.{ty})\n'
             self.code += '\n'
         else:
             assert isinstance(ty, LiteralType), "Other's not implemented"

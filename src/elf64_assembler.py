@@ -1,6 +1,6 @@
 from typing import List
 
-MACHO = """
+ELF64 = """
 ; An eager dynamically linked elf64 executable linking to libc and pthread.
 ; $ nasm nasm-dynamically-linked-elf64-reference.asm -f bin -o nasm-dynamically-linked-elf64-reference.out
 ; $ chmod +x nasm-dynamically-linked-elf64-reference.out
