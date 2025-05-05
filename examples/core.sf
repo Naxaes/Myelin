@@ -12,3 +12,21 @@ import * from macos
 print: (message: str, size: int) -> int {
     return write(STDOUT, message, size)
 }
+
+
+print_int: (n: int) {
+    buffer := alloc(12) as str
+    i := 11
+    buffer[i] = 10
+    i = i - 1
+
+	u := n
+
+    while u != 0 {
+        buffer[i] = 48 + u % 10
+        u = u / 10
+        i = i - 1
+    }
+
+    write(STDOUT, buffer+i+1, 11 - i)
+}

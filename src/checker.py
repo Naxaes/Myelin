@@ -58,6 +58,7 @@ class Checker:
                 or (b.name == 'void*' and a.name == 'str')
                 or (a.name == 'void*' and b.name == 'byte*')
                 or (a.name == 'byte*' and b.name.startswith('byte['))
+                or (a.name == 'byte' and b.name == 'int')
         ):
             return b
         if isinstance(a, PointerType) and b.name == 'int':
@@ -82,11 +83,11 @@ class Checker:
                 for code in block.instructions:
                     if code.op == 'lit':
                         self.infer_lit(code)
-                    elif code.op in ('+', '*', '==', '<'):
+                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<'):
                         a = self.get_arg(block, code.refs[0])
                         b = self.get_arg(block, code.refs[1])
                         t = self.type_check(a, b)
-                        self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '<') else t.name]
+                        self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '!=', '<') else t.name]
                     elif code.op == '.':
                         obj = self.get_arg(block, code.refs[0])
                         attr = code.refs[1]
@@ -142,7 +143,7 @@ class Checker:
                     elif code.op == 'index':
                         target = self.get_arg(block, code.refs[0])
                         if target.name == 'str' or target.name == 'byte*':
-                            self.mapping[code.dest] = self.builtins['int']
+                            self.mapping[code.dest] = self.builtins['byte']
                         else:
                             assert isinstance(target, PointerType), f"Cannot index a '{target}'"
                             self.mapping[code.dest] = target.pointee

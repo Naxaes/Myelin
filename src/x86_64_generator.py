@@ -1,6 +1,18 @@
 from type import LiteralType, Type, StructType
 
 
+def register_to_size(src, size):
+    if size == 1:
+        return src[1] + 'l' if not src[1].isnumeric() else src + 'b'
+    elif size == 2:
+        return src[1] + 'x' if not src[1].isnumeric() else src + 'w'
+    elif size == 4:
+        return 'e' + src[1] + 'x' if not src[1].isnumeric() else src + 'd'
+    elif size == 8:
+        return src
+    assert False
+
+
 class X86_64_Generator:
     def __init__(self, functions, data, constants, types):
         # https://devblogs.microsoft.com/oldnewthing/20231204-00/?p=109095
@@ -41,7 +53,7 @@ class X86_64_Generator:
                 for code in block.instructions:
                     if code.op == 'lit':
                         self.generate_lit(function, block, code)
-                    elif code.op in ('+', '*', '==', '<'):
+                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<'):
                         self.generate_bin(function, block, code)
                     elif code.op == 'decl':
                         self.generate_decl(function, block, code)
@@ -308,7 +320,8 @@ class X86_64_Generator:
         src  = self.consume_reg(expr)
         self.code += f'\t; {target} = {expr}\n\n'
         if type(name_a) != str and block.instructions[name_a].op == 'index':
-            self.add_code('mov', f'[{dst}]', src)
+            size = self.types[function.name][target].size
+            self.add_code('mov', f'[{dst}]', register_to_size(src, size))
         elif dst != src:
             self.add_code('mov', dst, src)
 
@@ -344,20 +357,43 @@ class X86_64_Generator:
         b = self.consume_reg(name_b)
 
         if code.op == '+':
-            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} + {name_b}')
-            self.add_code('add',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} + {name_b}')
+            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            self.add_code('add',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+        elif code.op == '-':
+            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            self.add_code('sub', reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
         elif code.op == '*':
-            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} * {name_b}')
-            self.add_code('imul', reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} * {name_b}')
-        elif code.op in ('==', '<'):
+            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            self.add_code('imul', reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+        elif code.op == '/':
+            self.add_code('push', 'rax')
+            self.add_code('push', 'rdx')
+            self.add_code('cqo')
+            self.add_code('mov', 'rax', a)
+            self.add_code('idiv', b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            self.add_code('mov', reg, 'rax')
+            self.add_code('pop', 'rdx')
+            self.add_code('pop', 'rax')
+        elif code.op == '%':
+            self.add_code('push', 'rax')
+            self.add_code('push', 'rdx')
+            self.add_code('cqo')
+            self.add_code('mov', 'rax', a)
+            self.add_code('idiv', b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            self.add_code('mov', reg, 'rdx')
+            self.add_code('pop', 'rdx')
+            self.add_code('pop', 'rax')
+        elif code.op in ('==', '!=', '<'):
             t = self.set_reg('__temp__')
             self.code += f'\t; {code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}\n'
             self.add_code('cmp',  f'{a}', f'{b}')
             self.add_code('mov',  f'{reg}', '0')
             self.add_code('mov',  f'{t}',   '1')
             self.consume_reg('__temp__')
-            if   code.op == '==':  self.add_code('cmove', f'{reg}', f'{t}')
-            elif code.op == '<':   self.add_code('cmovl', f'{reg}', f'{t}')
+            # https://www.felixcloutier.com/x86/cmovcc
+            if   code.op == '==':  self.add_code('cmove',  f'{reg}', f'{t}')
+            elif code.op == '!=':  self.add_code('cmovnz', f'{reg}', f'{t}')
+            elif code.op == '<':   self.add_code('cmovl',  f'{reg}', f'{t}')
             else:
                 assert False
         else:
