@@ -1,0 +1,29 @@
+import * from macos
+import * from core
+
+file := open("debug.txt\0", O_RDONLY)
+if file < 1 {
+	err := "Couldn't open file\n"
+	print(err, err.len)
+	exit(1)
+}
+
+msg := "File opened!\n"
+print(msg, msg.len)
+
+buffer := alloc(256) as str
+count  := read(file, buffer, 256)
+if count < 1 {
+	err := "Couldn't open file\n"
+	print(err, err.len)
+	exit(1)
+}
+
+buffer[count] = 10
+buffer[count+1] = 0
+
+print(buffer, count+2)
+
+close(file)
+exit(123)
+

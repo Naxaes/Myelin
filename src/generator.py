@@ -327,7 +327,7 @@ class Generator:
         reg = self.set_reg(code.dest)
         index, data = code.args
         if self.type_of(function, code).name == 'str' or self.type_of(function, code).name == 'byte*' or self.type_of(function, code).name.startswith('byte['):
-            self.add_code('mov', reg, f'data_{index}', comment=f'{code.dest} : {self.type_of(function, code)} = data_{index} ("{data}")')
+            self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {self.type_of(function, code)} = data_{index} ("{data}")')
         elif self.type_of(function, code).name == 'real':
             self.add_code('mov', reg, int(data), comment=f'{code.dest} : {self.type_of(function, code)} = {data}')
         else:

@@ -293,7 +293,7 @@ class Parser(TokenStream):
                 expr = self.parse_expr()
                 for i, name in enumerate(names):
                     id = self.push(Code('decl', type, dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
-                    self.block.declarations[name.data.decode()] = id
+                    # self.block.declarations[name.data.decode()] = id
             else:
                 if hasattr(type, '__iter__'):
                     for t, name in zip(type, names):

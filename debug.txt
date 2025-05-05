@@ -1,0 +1,5 @@
+# Build debug executable
+nasm -f macho64 -g -F dwarf -w+all src/build/cat.s -o src/build/cat.o && ld -macos_version_min 11.0 -L /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/ -lSystem -o src/build/cat_debug -e _start src/build/cat.o && chmod +x src/build/cat_debug
+
+# Display executable
+otool -hlxvVjd src/build/cat

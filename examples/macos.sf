@@ -16,6 +16,15 @@ SYS_MMAP:   0x20000C5
 SYS_MUNMAP: 0x2000049
 SYS_PIPE:   0x2000029
 
+
+# ---- SYS_OPEN ----
+O_RDONLY : 0
+O_WRONLY : 1
+O_RDWR   : 2
+O_CREAT  : 100
+O_EXCL   : 200
+
+
 read: (fd: int, buffer: ptr, count: int) -> int {
     return @syscall(SYS_READ, fd, buffer, count)
 }
@@ -24,8 +33,14 @@ write: (fd: int, buffer: ptr, count: int) -> int {
     return @syscall(SYS_WRITE, fd, buffer, count)
 }
 
-open: (path: str, flags: int, mode: int) -> int {
-    return @syscall(SYS_OPEN, path, flags, mode)
+open: (path: str, flags: int) -> int {
+	# For some reason, this returns `2` when it cannot find the path.
+    status: int = @syscall(SYS_OPEN, path, flags, 292)
+    if status < 3 {
+        return 0
+    } else {
+        return status
+    }
 }
 
 close: (fd: int) -> int {

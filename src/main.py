@@ -4,20 +4,21 @@ from checker import Checker
 from generator import Generator
 from assembler import make_macho_executable
 
+from pathlib import Path
 import sys
 
 def main():
     build = '../examples/'
-    name = 'main.sf' if len(sys.argv) < 2 else sys.argv[1]
+    path = Path('main.sf' if len(sys.argv) < 2 else sys.argv[1])
 
-    source = open(build + name).read()
+    source = open(build + path.name).read()
     tokens = Lexer.lex(source)
-    module = Parser.parse_module(tokens, name)
+    module = Parser.parse_module(tokens, path.name)
     types  = Checker.check(module)
 
     code, data = Generator.generate(module, types)
 
-    machine_code, readable_code = make_macho_executable(name.split('.')[0], code, data)
+    machine_code, readable_code = make_macho_executable(path.stem, code, data)
 
     for func in module.functions.values():
         print(f'{func}')
@@ -28,7 +29,7 @@ def main():
             print(f'\t\t{b.terminator}')
 
     # print(readable_code)
-    with open(f'build/{name.replace(".sf", "")}', 'wb') as file:
+    with open(f'build/{path.stem}', 'wb') as file:
         file.write(machine_code)
 
 
