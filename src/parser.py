@@ -370,16 +370,12 @@ class Parser(TokenStream):
             if not self.next_if(expect=','):
                 break
         self.block.terminator = Code('ret', refs=tuple(args))
-        self.new_block('ret')
 
     def parse_block(self):
         _ = self.next(expect='{')
         stmt = None
         while not self.peek_if_any('}', 'eof'):
             stmt = self.parse_stmt()
-
-        if not self.block.instructions and not self.block.terminator:
-            self.current.blocks.pop(-1)
 
         self.next(expect='}')
         return stmt
@@ -425,7 +421,7 @@ class Parser(TokenStream):
         self.current.returns = returns
         self.parse_block()
         if self.block.terminator is None:
-            self.block.terminator = Code('ret')  # TODO: Might be wrong since could have multiple end blocks
+            self.block.terminator = Code('leave')
         self.current = previous
         return 'func'
 

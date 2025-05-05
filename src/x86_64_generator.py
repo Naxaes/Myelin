@@ -80,6 +80,9 @@ class X86_64_Generator:
                     self.generate_jmp(function, block, code)
                 elif code.op == 'ret':
                     self.generate_ret(function, block, code)
+                elif code.op == 'leave':
+                    self.code += '\t; Implicit return\n'
+                    self.generate_ret(function, block, code)
                 else:
                     assert False, f"Unknown terminator {code}"
 

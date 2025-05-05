@@ -4,7 +4,6 @@ copy: (destination: str, source: str, size: int) {
 		destination[i] = source[i]
 		i = i + 1
 	}
-	i = 0
 }
 
 

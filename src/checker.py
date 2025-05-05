@@ -156,6 +156,8 @@ class Checker:
                     pass
                 elif code.op == 'jmp':
                     pass
+                elif code.op == 'leave':
+                    pass
                 elif code.op == 'ret':
                     if function.is_module:
                         continue
