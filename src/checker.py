@@ -88,6 +88,11 @@ class Checker:
                         b = self.get_arg(block, code.refs[1])
                         t = self.type_check(a, b)
                         self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '!=', '<') else t.name]
+                    elif code.op in ('and', 'or'):
+                        a = self.get_arg(block, code.refs[0])
+                        b = self.get_arg(block, code.refs[1])
+                        self.type_check(a, b)
+                        self.mapping[code.dest] = self.builtins['bool']
                     elif code.op == '.':
                         obj = self.get_arg(block, code.refs[0])
                         attr = code.refs[1]

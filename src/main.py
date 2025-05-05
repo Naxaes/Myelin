@@ -25,7 +25,7 @@ def main():
             print(f'\t{b}')
             for i, instruction in enumerate(b.instructions):
                 print(f'\t\t[{i:02}]: {instruction}')
-            print(f'\t\t[{len(b.instructions):02}]{b.terminator}')
+            print(f'\t\t[{len(b.instructions):02}]: {b.terminator}')
 
     # print(readable_code)
     with open(f'build/{path.stem}', 'wb') as file:

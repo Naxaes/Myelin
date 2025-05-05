@@ -53,7 +53,7 @@ class X86_64_Generator:
                 for code in block.instructions:
                     if code.op == 'lit':
                         self.generate_lit(function, block, code)
-                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<'):
+                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<', 'and', 'or'):
                         self.generate_bin(function, block, code)
                     elif code.op == 'decl':
                         self.generate_decl(function, block, code)
@@ -396,6 +396,11 @@ class X86_64_Generator:
             elif code.op == '<':   self.add_code('cmovl',  f'{reg}', f'{t}')
             else:
                 assert False
+        elif code.op in ('and', 'or'):
+            if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            if   code.op == 'or':  self.add_code('or',   reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            elif code.op == 'and': self.add_code('and',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            else: assert False
         else:
             assert False, f'Not implemented {code}'
         self.code += '\n'
