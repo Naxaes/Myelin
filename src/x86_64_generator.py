@@ -1,7 +1,7 @@
 from type import LiteralType, Type, StructType
 
 
-class Generator:
+class X86_64_Generator:
     def __init__(self, functions, data, constants, types):
         # https://devblogs.microsoft.com/oldnewthing/20231204-00/?p=109095
         # Nested function - Static chain pointer
@@ -28,7 +28,7 @@ class Generator:
         data = module.data
         constants = module.constants
 
-        self = Generator(functions, data, constants, types)
+        self = X86_64_Generator(functions, data, constants, types)
         for name, function in self.functions.items():
             if len(function.blocks) == 0:
                 continue

@@ -1,7 +1,7 @@
 from lexer import Lexer
 from parser import Parser
 from checker import Checker
-from generator import Generator
+from x86_64_generator import X86_64_Generator
 from assembler import make_macho_executable
 
 from pathlib import Path
@@ -16,8 +16,7 @@ def main():
     module = Parser.parse_module(tokens, path.name)
     types  = Checker.check(module)
 
-    code, data = Generator.generate(module, types)
-
+    code, data = X86_64_Generator.generate(module, types)
     machine_code, readable_code = make_macho_executable(path.stem, code, data)
 
     for func in module.functions.values():

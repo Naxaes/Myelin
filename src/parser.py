@@ -177,6 +177,7 @@ class Parser(TokenStream):
         self.constants = {}
         self.types = {}
         self.imports = {}
+        self.in_expression_followed_by_block = False
 
     def new_function(self, name, params, is_module=False, is_main=False):
         function = Function(name, params, is_module=is_module, is_main=is_main)
@@ -316,7 +317,10 @@ class Parser(TokenStream):
 
     def parse_if(self):
         _ = self.next(expect='if')
+
+        self.in_expression_followed_by_block = True
         cond = self.parse_expr()
+        self.in_expression_followed_by_block = False
 
         prev = self.block
         then = self.new_block('then')
@@ -343,7 +347,9 @@ class Parser(TokenStream):
         whyle = self.new_block('while')
         prev.terminator = Code('jmp', args=(whyle.offset,))
 
+        self.in_expression_followed_by_block = True
         cond = self.parse_expr()
+        self.in_expression_followed_by_block = False
 
         prev = self.block
 
@@ -513,7 +519,7 @@ class Parser(TokenStream):
             #         not a type. The common case is `MyType {}`, which is almost always an identifier.
             #         This is only an issue when in an expression that might be followed by a block,
             #         for example the condition in an if-statement.
-            if self.peek_if('{') and self.previous().kind != 'ident':  # and self.is_in_condition()
+            if self.peek_if('{') and (self.previous().kind != 'ident' or self.in_expression_followed_by_block):
                 return left
 
             left = self.parse_infix(left)
@@ -534,7 +540,7 @@ class Parser(TokenStream):
         elif self.peek_if('ident'):
             if self.peek_many(2)[1].kind == '(':
                 return self.parse_func_call()
-            if self.peek_many(2)[1].kind == '{':
+            if self.peek_many(2)[1].kind == '{' and not self.in_expression_followed_by_block:
                 return self.parse_initializer()
             return self.parse_ident()
         elif self.peek_if('@'):
