@@ -304,8 +304,10 @@ class Parser(TokenStream):
                         self.constants[name.data.decode()] = type
         elif self.next_if(':='):
             expr = self.parse_expr()
-            for i, name in enumerate(names):
-                id = self.push(Code('decl', dest=name.data.decode(), refs=(expr+i, ) if expr is not None else ()))
+            if len(names) == 1:
+                id = self.push(Code('decl', dest=names[0].data.decode(), refs=(expr, ) if expr is not None else ()))
+            else:
+                id = self.push(Code('multidecl', dest=self.implicit_name(), refs=(expr, ) if expr is not None else (), args=tuple(n.data.decode() for n in names)))
                 # self.block.declarations[name.data.decode()] = id
         else:
             raise RuntimeError(f'Unknown token {self.peek()}')
@@ -427,7 +429,7 @@ class Parser(TokenStream):
 
     def parse_func_call(self):
         name = self.next(expect='ident')
-        func = self.functions.get(name.data.decode(), None)
+        func = name.data.decode()
 
         self.next(expect='(')
         args = []
@@ -436,14 +438,7 @@ class Parser(TokenStream):
             args.append(arg)
             self.next_if(',')
 
-        if func is None:
-            # return self.push(Code('call', dest=self.implicit_name(), args=(name.data.decode(), ), refs=tuple(args)))
-            raise KeyError(f"'{name.data.decode()}' not defined in module '{self.name}'")
-
         call = self.push(Code('call', dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
-
-        for i in range(1, len(func.returns)):
-            self.push(Code('_', dest=self.implicit_name(), args=(func, i)))
         return call
 
     def parse_struct(self, name: str):
@@ -466,8 +461,6 @@ class Parser(TokenStream):
         name = self.next(expect='ident')
         _ = self.next(expect='{')
 
-        thing = self.types[name.data.decode()]
-        fields = thing.copy()
         i = 0
         args = []
         while not self.next_if(expect='}'):
@@ -475,12 +468,11 @@ class Parser(TokenStream):
             self.next(expect='=')
             field_arg = self.parse_expr()
             self.next_if(expect=',')
-            expected_type, expected_name, expected_pos = fields.pop(field_name)
-            add = self.push(Code('field', type=expected_type, dest=self.implicit_name(), refs=(field_arg,)))
+            add = self.push(Code('field', dest=self.implicit_name(), refs=(field_arg,), args=(field_name, i)))
             args.append(add)
             i += 1
 
-        stuff = self.push(Code('init', type=thing, dest=self.implicit_name(), refs=tuple(args)))
+        stuff = self.push(Code('init', type=name.data.decode(), dest=self.implicit_name(), refs=tuple(args)))
         return stuff
 
 

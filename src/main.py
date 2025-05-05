@@ -23,9 +23,9 @@ def main():
         print(f'{func}')
         for b in func.blocks:
             print(f'\t{b}')
-            for instruction in b.instructions:
-                print(f'\t\t{instruction}')
-            print(f'\t\t{b.terminator}')
+            for i, instruction in enumerate(b.instructions):
+                print(f'\t\t[{i:02}]: {instruction}')
+            print(f'\t\t[{len(b.instructions):02}]{b.terminator}')
 
     # print(readable_code)
     with open(f'build/{path.stem}', 'wb') as file:

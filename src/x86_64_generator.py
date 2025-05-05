@@ -45,6 +45,8 @@ class X86_64_Generator:
                         self.generate_bin(function, block, code)
                     elif code.op == 'decl':
                         self.generate_decl(function, block, code)
+                    elif code.op == 'multidecl':
+                        self.generate_multidecl(function, block, code)
                     elif code.op == 'assign':
                         self.generate_assign(function, block, code)
                     elif code.op == 'label':
@@ -134,7 +136,7 @@ class X86_64_Generator:
         self.vars[code.dest] = dst
 
     def generate_call(self, function, block, code):
-        func = code.args[0]
+        func = self.functions[code.args[0]]
         pushed = self.prepare_function_call(function, block, code)
         self.add_code('call', func.name)
         self.finish_function_call(code, pushed, len(func.returns))
@@ -145,10 +147,13 @@ class X86_64_Generator:
         self.finish_function_call(code, pushed, returns = 1)
 
     def finish_function_call(self, code, pushed, returns = 0):
-        for i in range(returns):
-            dest = code.dest if i == 0 else f'{code.dest[:4]}{int(code.dest[4:]) + i}'
+        for i in range(returns-1, -1, -1):
+            dest = code.dest if returns == 1 else f'{code.dest}.{i}'
             dst = self.set_reg(dest)
-            self.add_code('mov', dst, self.regs[i])
+            if dst != self.regs[i]:
+                self.add_code('mov', dst, self.regs[i], comment=f'{dest}')
+            else:
+                self.code += f'\t; {dst} = {dest}\n'
         for var, reg in reversed(pushed):
             self.add_code('pop', reg, comment=f'Restore {var}')
         self.code += '\n'
@@ -235,6 +240,19 @@ class X86_64_Generator:
         if dst != src:
             self.add_code('mov', dst, src)
         self.vars[code.dest] = dst
+
+    def generate_multidecl(self, function, block, code):
+        for i, arg in enumerate(code.args):
+            name = code.refs[0]
+            name = name if type(name) == str else block.instructions[name].dest
+            dest = f'{name}.{i}'
+            ty = self.types[function.name][name][i]
+            src = self.consume_reg(dest)
+            dst = self.set_reg(arg)
+            self.code += f'\t; {arg} ({dst}) : {ty} = {dest}\n\n'
+            if dst != src:
+                self.add_code('mov', dst, src)
+            self.vars[name] = dst
 
     def generate_field(self, function, block, code):
         name = code.refs[0]

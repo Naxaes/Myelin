@@ -1,16 +1,21 @@
 import * from macos
 import * from core
 
+foo := Foo { bar=11, baz="Hello ted!\n" }
+x, y := display_foo(foo)
+
+
+display_foo: (obj: Foo) -> int, int {
+	return obj.bar, temp(obj)
+
+	temp: (thing: Foo) -> int {
+		print(thing.baz, thing.bar)
+		return thing.bar + 10
+	}
+}
+
 Foo: struct {
 	bar: int
 	baz: str
 }
 
-foo := Foo { bar=11, baz="Hello ted!\n" }
-
-display_foo: (obj: Foo) -> int {
-	print(obj.baz, obj.bar)
-	return obj.bar + 10
-}
-
-display_foo(foo)

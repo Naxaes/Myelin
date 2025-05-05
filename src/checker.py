@@ -98,6 +98,10 @@ class Checker:
                             self.mapping[code.dest] = self.type_check(a, t)
                         else:
                             assert False, "Not implemented"
+                    elif code.op == 'multidecl':
+                        a = self.get_arg(block, code.refs[0])
+                        for i, n in enumerate(code.args):
+                            self.mapping[n] = a[i]
                     elif code.op == 'assign':
                         a = self.get_arg(block, code.refs[0])
                         b = self.get_arg(block, code.refs[1])
@@ -105,14 +109,19 @@ class Checker:
                     elif code.op == 'label':
                         pass
                     elif code.op == 'call':
-                        f = code.args[0]
+                        f = self.functions[code.args[0]]
                         args = code.refs[:]
                         if len(f.params) != len(args):
                             raise RuntimeError(f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
                         for i, (name, t) in enumerate(f.params.items()):
                             a = self.get_arg(block, args[i])
                             self.type_check(self.builtins.get(t[0]) or self.user_types[t[0]], a)
-                        self.mapping[code.dest] = self.builtins[f.returns[0][1] if len(f.returns) > 0 else None]
+                        if len(f.returns) == 0:
+                            self.mapping[code.dest] = self.builtins[None]
+                        elif len(f.returns) == 1:
+                            self.mapping[code.dest] = self.builtins[f.returns[0][1]]
+                        else:
+                            self.mapping[code.dest] = tuple(self.builtins[f.returns[i][1]] for i in range(len(f.returns)))
                     elif code.op == '_':
                         f = code.args[0]
                         self.mapping[code.dest] = self.builtins[f.returns[code.args[1]][1]]
@@ -121,14 +130,13 @@ class Checker:
                     elif code.op == 'field':
                         self.mapping[code.dest] = self.builtins[code.type]
                     elif code.op == 'init':
-                        assert len(code.type.keys())-1 == len(code.refs)
-                        fields = {}
-                        for n, arg in zip(code.type, (None, )+code.refs):
-                            if n == '__name__': continue
+                        thing = self.builtins.get(code.type) or self.user_types[code.type]
+                        assert len(thing.fields) == len(code.refs)
+                        for (n, t), arg in zip(thing.fields.items(), code.refs):
                             actual = self.get_arg(block, arg)
-                            expect = self.builtins[code.type[n][0]]
-                            fields[n] = self.type_check(expect, actual)
-                        self.mapping[code.dest] = StructType(code.type['__name__'], fields)
+                            expect = t
+                            self.type_check(expect, actual)
+                        self.mapping[code.dest] = thing
                     elif code.op == 'syscall':
                         self.mapping[code.dest] = self.builtins[None]
                     elif code.op == 'index':
