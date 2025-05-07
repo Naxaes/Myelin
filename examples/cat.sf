@@ -1,7 +1,14 @@
 import * from macos
 import * from core
 
-file := open("debug.txt\0", O_RDONLY)
+path, size := input()
+path[size-1] = 0
+
+print("Opening file: ", 14)
+print(path, size)
+print("\n", 1)
+
+file := open(path, O_RDONLY)
 if file < 1 {
 	err := "Couldn't open file\n"
 	print(err, err.len)

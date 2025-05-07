@@ -83,12 +83,12 @@ class Checker:
                 for code in block.instructions:
                     if code.op == 'lit':
                         self.infer_lit(code)
-                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<'):
+                    elif code.op in ('+', '-', '*', '/', '%'):
                         a = self.get_arg(block, code.refs[0])
                         b = self.get_arg(block, code.refs[1])
                         t = self.type_check(a, b)
-                        self.mapping[code.dest] = self.builtins['bool' if code.op in ('==', '!=', '<') else t.name]
-                    elif code.op in ('and', 'or'):
+                        self.mapping[code.dest] = self.builtins[t.name]
+                    elif code.op in ('and', 'or', '==', '!=', '<'):
                         a = self.get_arg(block, code.refs[0])
                         b = self.get_arg(block, code.refs[1])
                         self.type_check(a, b)
@@ -144,6 +144,8 @@ class Checker:
                             self.type_check(expect, actual)
                         self.mapping[code.dest] = thing
                     elif code.op == 'syscall':
+                        self.mapping[code.dest] = self.builtins[None]
+                    elif code.op == 'asm':
                         self.mapping[code.dest] = self.builtins[None]
                     elif code.op == 'index':
                         target = self.get_arg(block, code.refs[0])

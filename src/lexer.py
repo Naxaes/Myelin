@@ -237,7 +237,7 @@ class Lexer:
             char, end = self.next()
 
         if char != '"':
-            raise RuntimeError("Missing close quotation")
+            raise RuntimeError(f"Missing close quotation, got {repr(char)}")
 
         # NOTE: Don't include '"' in the data or location.
         self.tokens.append(Token('string', begin, end, bytes(self.repr_of(begin, end), 'utf-8')))

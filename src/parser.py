@@ -489,6 +489,11 @@ class Parser(TokenStream):
                 self.next_if(',')
 
             return self.push(Code('syscall', type='int', dest=self.implicit_name(), refs=tuple(args)))
+        elif attribute.data.decode() == 'asm':
+            self.next(expect='(')
+            data = self.parse_string()
+            self.next(expect=')')
+            return self.push(Code('asm', dest=self.implicit_name(), refs=(data, )))
         else:
             assert False, "Not implemented"
 

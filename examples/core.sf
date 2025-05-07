@@ -14,9 +14,18 @@ print: (message: str, size: int) -> int {
 }
 
 
+input: () -> str, int {
+	size := 32
+	buffer := alloc(size) as str
+    return buffer, read(STDIN, buffer, size)
+}
+
+
 print_int: (n: int) {
-    buffer := alloc(12) as str
-    i := 11
+	# LEAK
+	count := 21  # Enough to store 2^64 or -2^63
+    buffer := alloc(count) as str
+    i := count-1
     buffer[i] = 10
     i = i - 1
 
@@ -26,5 +35,5 @@ print_int: (n: int) {
         i = i - 1
     }
 
-    write(STDOUT, buffer+i+1, 11 - i)
+    write(STDOUT, buffer+i+1, count-1 - i)
 }

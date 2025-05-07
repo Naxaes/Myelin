@@ -7,6 +7,7 @@ from assembler import make_macho_executable
 from pathlib import Path
 import sys
 
+
 def main():
     build = '../examples/'
     path = Path('main.sf' if len(sys.argv) < 2 else sys.argv[1])

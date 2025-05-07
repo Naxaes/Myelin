@@ -33,14 +33,13 @@ write: (fd: int, buffer: ptr, count: int) -> int {
     return @syscall(SYS_WRITE, fd, buffer, count)
 }
 
+
+# Sets the carry flag if it fails.
+# Returns errno in rax on failure, or the file descriptor otherwise.
+# Clobbers rdx
 open: (path: str, flags: int) -> int {
-	# For some reason, this returns `2` when it cannot find the path.
     status: int = @syscall(SYS_OPEN, path, flags, 292)
-    if status < 3 {
-        return 0
-    } else {
-        return status
-    }
+    @asm("mov rax, rdx\nmov rdi, 0\ncmovc rax, rdi\nret\n")
 }
 
 close: (fd: int) -> int {

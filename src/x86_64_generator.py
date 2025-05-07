@@ -76,6 +76,8 @@ class X86_64_Generator:
                         self.generate_init(function, block, code)
                     elif code.op == 'syscall':
                         self.generate_syscall(function, block, code)
+                    elif code.op == 'asm':
+                        self.generate_asm(function, block, code)
                     elif code.op == 'index':
                         self.generate_index(function, block, code)
                     elif code.op == '&':
@@ -158,12 +160,17 @@ class X86_64_Generator:
         self.add_code('syscall')
         self.finish_function_call(code, pushed, returns = 1)
 
+    def generate_asm(self, function, block, code):
+        index, value = block.instructions[code.refs[0]].args
+        code = '\n\t; Inline asm\n\t' + '\n\t'.join(value.split('\\n'))
+        self.code += code + '\n'
+
     def finish_function_call(self, code, pushed, returns = 0):
-        for i in range(returns-1, -1, -1):
+        for i in range(returns):
             dest = code.dest if returns == 1 else f'{code.dest}.{i}'
             dst = self.set_reg(dest)
             if dst != self.regs[i]:
-                self.add_code('mov', dst, self.regs[i], comment=f'{dest}')
+                self.add_code('mov', dst, self.regs[i], comment=f'ret {i} := {dest}')
             else:
                 self.code += f'\t; {dst} = {dest}\n'
         for var, reg in reversed(pushed):
@@ -175,13 +182,15 @@ class X86_64_Generator:
 
         pushed = []
         for i, n in enumerate(self.regs):
-            if (pair := next(((x, y) for x, y in self.vars.items() if y == n), None)):
+            if pair := next(((x, y) for x, y in self.vars.items() if y == n), None):
                 self.add_code('push', n, comment=f'Save {pair[0]}')
                 pushed.append(pair)
+
         args = [(i, self.peek_reg(arg)) for i, arg in enumerate([
             arg if type(arg) == str else block.instructions[arg].dest
             for arg in code.refs
         ])]
+
         deferred = []
         temporaries = []
         while True:
@@ -264,7 +273,7 @@ class X86_64_Generator:
             self.code += f'\t; {arg} ({dst}) : {ty} = {dest}\n\n'
             if dst != src:
                 self.add_code('mov', dst, src)
-            self.vars[name] = dst
+            self.vars[arg] = dst
 
     def generate_field(self, function, block, code):
         name = code.refs[0]
