@@ -196,6 +196,7 @@ class Lexer:
 
     def lex_number(self, char: str, begin: Location) -> tuple[str, Location]:
         assert char.isnumeric()
+        end = begin
 
         if char == '0':
             char, end = self.next()
@@ -205,13 +206,9 @@ class Lexer:
                     char, end = self.next()
                 self.tokens.append(Token('number', begin, end, int(self.repr_of(begin, end), 16)))
                 return char, end
-            elif not char.isnumeric():
-                self.tokens.append(Token('number', begin, end, 0))
-                return char, end
             else:
-                assert False, 'Not implemented'
+                pass
 
-        end = begin
         while char.isnumeric():
             char, end = self.next()
 

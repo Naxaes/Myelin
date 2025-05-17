@@ -166,7 +166,10 @@ class X86_64_Generator:
         self.code += code + '\n'
 
     def finish_function_call(self, code, pushed, returns = 0):
-        for i in range(returns):
+        # FIXME: I need to write an actual register allocation algorithm...
+        #        This is starting to get a bit too hacky.
+        iterator = reversed(range(returns)) if self.vars else range(returns)
+        for i in iterator:
             dest = code.dest if returns == 1 else f'{code.dest}.{i}'
             dst = self.set_reg(dest)
             if dst != self.regs[i]:
@@ -181,9 +184,9 @@ class X86_64_Generator:
         assert code.op == 'call' or code.op == 'syscall'
 
         pushed = []
-        for i, n in enumerate(self.regs):
-            if pair := next(((x, y) for x, y in self.vars.items() if y == n), None):
-                self.add_code('push', n, comment=f'Save {pair[0]}')
+        for i, r in enumerate(self.regs):
+            if pair := next(((name, reg) for name, reg in self.mapping.items() if reg == r), None):
+                self.add_code('push', r, comment=f'Save {pair[0]}')
                 pushed.append(pair)
 
         args = [(i, self.peek_reg(arg)) for i, arg in enumerate([
