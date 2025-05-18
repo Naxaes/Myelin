@@ -1,8 +1,8 @@
 from typing import Optional
 from collections import namedtuple
 from collections  import OrderedDict
-from src.ir.basic_block import Block
-from src.ir.ir import Code, TERMINATORS
+from ir.basic_block import Block
+from ir.ir import Code, TERMINATORS
 
 KEYWORDS = {
     'jmp',

@@ -18,11 +18,6 @@ def remove_unused_functions(module: Module):
 
         graph[function.name] = callers
 
-    print(entry)
-    for name, callers in graph.items():
-        print(f'{name} -> {callers}')
-
-
     visited = set()
     queue = [entry.name]
     while queue:

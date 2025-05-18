@@ -1,7 +1,7 @@
 from typing import Optional, Any
 from collections import namedtuple
 
-from src.ir.ir import INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS, Code
+from ir.ir import INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS, Code
 
 Entry = namedtuple('Entry', ('value', 'variable'))
 
@@ -210,7 +210,7 @@ class Block:
 
 
 
-from src.ir.ir import c
+from ir.ir import c
 
 import unittest
 

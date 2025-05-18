@@ -1,8 +1,8 @@
 from typing import Callable, List, Any
 
-from src.ir.basic_block import Block, Entry
-from src.ir.ir import Code
-from src.ir.ir_parser import parse, build_cfg
+from ir.basic_block import Block, Entry
+from ir.ir import Code
+from ir.ir_parser import parse, build_cfg
 
 
 def lt(a, b): return (a[0], min(a[1], b[1] - 1)), (max(a[0] + 1, b[0]), b[1])
@@ -475,9 +475,12 @@ class Function:
         return program
 
     def __repr__(self):
-        parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
-        rets = ', '.join(ty for name, ty in self.returns)
-        return f'{self.name}: ({parameters}) -> {rets or "void"}'
+        if self.is_module:
+            return f'{self.name}: @module'
+        else:
+            parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
+            rets = ', '.join(ty for name, ty in self.returns)
+            return f'{self.name}: ({parameters}) -> {rets or "void"}'
 
 
 def cprop_transfer(block, in_vals):
@@ -534,7 +537,7 @@ def check_all_variables_are_initialized_before_use(function: Function):
     )
 
 
-from src.ir.ir import c
+from ir.ir import c
 
 import unittest
 

@@ -23,8 +23,6 @@ foo: () -> int, int {
 	return 1, 22
 }
 
-# x, y := foo()
-
 
 Thing: struct {
 	x: int
@@ -32,5 +30,5 @@ Thing: struct {
 	b: str
 	y: int
 }
-thing := Thing { x=1, a=8, b="Kaboom\n\0", y=1 }
+thing := Thing { x=1, a=7, b="Kaboom\n\0", y=1 }
 print(thing.b, thing.a)

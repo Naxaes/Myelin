@@ -3,6 +3,8 @@ from type import LiteralType, Type, StructType
 
 def register_to_size(src, size):
     if size == 1:
+        if src in ('rsi', 'rsp', 'rbp', 'rdi'):
+            return src[1:] + 'l'
         return src[1] + 'l' if not src[1].isnumeric() else src + 'b'
     elif size == 2:
         return src[1] + 'x' if not src[1].isnumeric() else src + 'w'
@@ -231,7 +233,8 @@ class X86_64_Generator:
 
         if function.is_main:
             self.code += '\t; End of module (implicit exit)\n'
-            self.add_code('mov', 'rdi', list(self.mapping.values())[-1])
+            if self.mapping: self.add_code('mov', 'rdi', list(self.mapping.values())[-1])
+            else: self.add_code('mov', 'rdi', '0')
             self.add_code('mov', 'rax', '0x2000000+1')
             self.add_code('syscall')
             self.code += '\n'

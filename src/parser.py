@@ -15,7 +15,7 @@ class Builtin:
     def __repr__(self):
         parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
         rets = ', '.join(ty for name, ty in self.returns)
-        return f'{self.name}: ({parameters}) -> {rets or "void"}'
+        return f'{self.name}: @builtin({parameters}) -> {rets or "void"}'
 
 
 class Module:
@@ -264,7 +264,7 @@ class Parser(TokenStream):
             return
 
         assert things.kind == '*', "Only support full imports for now"
-        with open('../examples/' + file + '.sf', 'r') as data:
+        with open('examples/' + file + '.sf', 'r') as data:
             source = data.read()
 
         tokens = Lexer.lex(source)

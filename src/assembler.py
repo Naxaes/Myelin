@@ -267,7 +267,7 @@ def round_up_to_multiple_of_two(number, multiple):
     return (number + multiple - 1) & -multiple
 
 # %rdi, %rsi, %rdx, %rcx, %r8 and %r9
-def make_macho_executable(output, code, data):
+def make_macho_executable(output, code, data, generate_debug=False):
     origin = 0x100000000
 
     head_s = 32
@@ -290,11 +290,12 @@ def make_macho_executable(output, code, data):
     binary = open(f'build/{output}', 'rb').read()
 
     # Debug code
-    header = f'BITS 64\nglobal _start\n_start:\n'
-    debug = header + code + INTERNAL_CODE + INTERNAL_DATA + data + PAD_DATA
-    with open(f'build/{output}_debug.s', 'w') as file:
-        file.write(debug)
-    os.system(f'nasm -f macho64 -g -F dwarf -w+all build/{output}_debug.s -o build/{output}_debug.o && ld -macos_version_min 11.0 -L /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/ -lSystem -o build/{output}_debug -e _start build/{output}_debug.o')
+    if generate_debug:
+        header = f'BITS 64\nglobal _start\n_start:\n'
+        debug = header + code + INTERNAL_CODE + INTERNAL_DATA + data + PAD_DATA
+        with open(f'build/{output}_debug.s', 'w') as file:
+            file.write(debug)
+        os.system(f'nasm -f macho64 -g -F dwarf -w+all build/{output}_debug.s -o build/{output}_debug.o && ld -macos_version_min 11.0 -L /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/ -lSystem -o build/{output}_debug -e _start build/{output}_debug.o')
 
     zero  = [
         *le32(LC_SEGMENT_64),

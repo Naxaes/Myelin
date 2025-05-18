@@ -195,7 +195,7 @@ class Checker:
         index, data = code.args
         match code.type:
             case 'str':
-                ty = ArrayType(self.builtins['byte'], len(data))
+                ty = ArrayType(self.builtins['byte'], len(data.replace('\\', '')))
                 ty = self.registry.intern(ty)
                 self.mapping[code.dest] = ty
             case 'int':
