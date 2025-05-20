@@ -43,10 +43,10 @@ class X86_64_Generator:
         constants = module.constants
 
         self = X86_64_Generator(functions, data, constants, types)
-        for name, function in self.functions.items():
+        for function in self.functions.values():
             if len(function.blocks) == 0:
                 continue
-            self.code += f"; -------- '{name}' --------\n{name}:\n"
+            self.code += f"; -------- '{function.name}' --------\n{function.name}:\n"
             self.mapping = { }
             self.vars    = { }
             for block in function.blocks:
@@ -112,9 +112,8 @@ class X86_64_Generator:
         return self.code, data
 
     def generate_init(self, function, block, code):
-        name = code.refs[0]
-        name = name if type(name) == str else block.instructions[name].dest
         ty = self.type_of(function, code)
+        assert isinstance(ty, StructType), f'Invalid type {ty} to init'
         self.code += f'\t; {ty.name} {ty.fields}\n'
         self.code += f'\tsub rsp, {ty.size}\n'
         names = []
@@ -128,7 +127,7 @@ class X86_64_Generator:
 
     def add_code(self, *args, comment=None):
         if len(args) == 3:
-            a = args[1]+',' if len(args[1]) == 3 else args[1]+', '
+            a = args[1] + ',' if len(args[1]) == 3 else args[1] + ', '
             self.code += f'\t{args[0]:<5} {a:<3} {args[2]:<3}'
         elif len(args) == 2:
             self.code += f'\t{args[0]:<5} {args[1]:<7}'

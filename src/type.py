@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Set, Union, Dict, Any
+from typing import List, Optional, Set, Dict
 from enum import Enum, auto
 
 
@@ -46,13 +46,16 @@ class Type(ABC):
 # --- Primitive Type ---
 class PrimitiveType(Type):
     SAFE_COERCIONS: Dict[str, Set[str]] = {
-        'i8': {'i16', 'i32', 'i64', 'f32', 'f64'},
-        'u8': {'u16', 'u32', 'u64', 'f32', 'f64', 'i16', 'i32', 'i64'},
-        'i16': {'i32', 'i64', 'f32', 'f64'},
+        'u8':  {'u16', 'u32', 'u64', 'f32', 'f64', 'i16', 'i32', 'i64'},
+        'i8':  {'i16', 'i32', 'i64', 'f32', 'f64'},
         'u16': {'u32', 'u64', 'f32', 'f64', 'i32', 'i64'},
-        'i32': {'u64', 'f64', 'i64'},
+        'i16': {'i32', 'i64', 'f32', 'f64'},
         'u32': {'u64', 'f64', 'i64'},
+        'i32': {'f64', 'i64'},
         'f32': {'f64'},
+        'i64': { },
+        'u64': { },
+        'f64': { },
     }
 
     def __init__(self, name: str, size: int, qualifiers: Optional[Set[Qualifier]] = None):

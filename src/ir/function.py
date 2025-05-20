@@ -20,7 +20,7 @@ class Function:
                  successors: dict[str, list[Block]] = None,
                  is_module=False,
                  is_main=False
-     ):
+    ):
         self.name = name
         self.params = parameters or {}
         self.returns = return_values or []
@@ -35,6 +35,12 @@ class Function:
         blocks, predecessors, successors = build_cfg(instructions)
         function = Function(name, parameters, return_values, blocks, predecessors, successors)
         return function
+
+    def code(self):
+        for block in self.blocks:
+            for code in block.instructions:
+                yield block, code
+            yield block, block.terminator
 
     def block_at(self, label):
         for block in self.blocks:

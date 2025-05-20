@@ -12,6 +12,9 @@ class Builtin:
         self.params = params
         self.blocks = []
 
+    def code(self):
+        return []
+
     def __repr__(self):
         parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
         rets = ', '.join(ty for name, ty in self.returns)
@@ -474,7 +477,6 @@ class Parser(TokenStream):
 
         stuff = self.push(Code('init', args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args)))
         return stuff
-
 
     def parse_compiler_attribute(self):
         _ = self.next(expect='@')
