@@ -35,7 +35,7 @@ class Checker:
         elif name in self.user_types:
             return self.user_types[name]
         else:
-            raise f'Unknown type {name}'
+            raise RuntimeError(f'Unknown type {name}')
             
 
     def type_of(self, block, arg):
@@ -113,7 +113,7 @@ class Checker:
                     elif code.op == 'decl':
                         if code.refs:
                             a = self.type_of(block, code.target())
-                            t = self.lookup_type(code.type)
+                            t = self.lookup_type(code.type())
                             self.mapping[code.dest] = self.type_check(a, t)
                         else:
                             assert False, "Not implemented"
@@ -148,11 +148,11 @@ class Checker:
                         ret = f.returns[code.args[1]][1]
                         self.mapping[code.dest] = self.lookup_type(ret)
                     elif code.op == 'param':
-                        self.mapping[code.dest] = self.lookup_type(code.type)
+                        self.mapping[code.dest] = self.lookup_type(code.type())
                     elif code.op == 'field':
-                        self.mapping[code.dest] = self.lookup_type(code.type)
+                        self.mapping[code.dest] = self.lookup_type(code.type())
                     elif code.op == 'init':
-                        thing = self.lookup_type(code.type)
+                        thing = self.lookup_type(code.type())
                         assert len(thing.fields) == len(code.refs)
                         for (n, t), arg in zip(thing.fields.items(), code.refs):
                             actual = self.type_of(block, arg)
@@ -175,7 +175,7 @@ class Checker:
                         self.mapping[code.dest] = PointerType(target)
                     elif code.op == 'as':
                         obj = self.type_of(block, code.target())
-                        to  = self.lookup_type(code.type)
+                        to  = self.lookup_type(code.type())
                         assert obj.can_coerce_to(to)
                         self.mapping[block.instructions[code.target()].dest] = to
                         self.mapping[code.dest] = to
@@ -205,19 +205,19 @@ class Checker:
 
     def infer_lit(self, code):
         assert code.op == 'lit'
-        assert code.type is not None, "All literals have a type"
-        assert len(code.args) == 2, "Expected index and data"
+        assert code.type() is not None, "All literals have a type"
+        assert len(code.args) == 3, "Expected type, index and data"
 
-        index, data = code.args
-        match code.type:
+        t, index, data = code.args
+        match t:
             case 'str':
                 ty = ArrayType(self.builtins['byte'], len(data.replace('\\', '')))
                 ty = self.registry.intern(ty)
                 self.mapping[code.dest] = ty
             case 'int':
-                self.mapping[code.dest] = self.lookup_type(code.type)
+                self.mapping[code.dest] = self.lookup_type(t)
             case 'real':
-                self.mapping[code.dest] = self.lookup_type(code.type)
+                self.mapping[code.dest] = self.lookup_type(t)
             case _:
                 raise TypeError(f'Unknown type {code}')
 

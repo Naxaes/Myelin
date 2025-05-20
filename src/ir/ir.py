@@ -8,12 +8,14 @@ SIDE_EFFECTS = 'ret', 'print', 'call', 'alloc', 'free'
 INSTRUCTIONS = ("add", 'sub', 'mul', 'gt', 'lt', 'get', 'lit', 'ref', 'move') + SIDE_EFFECTS + TERMINATORS
 
 
+
+
+
 @dataclass
 class Code:
     op:    str
-    type:  Optional[str] = None  # Inferred type
     dest:  Optional[str] = None
-    args:  tuple = ()               # Contains some data; numbers, labels, and things that aren't references
+    args:  tuple = ()               # Contains some data; numbers, labels, types, and things that aren't references
     refs:  tuple = ()               # Contains a reference to an instruction in code
     token: Optional[Token] = None
 
@@ -23,6 +25,7 @@ class Code:
     def obj(self): return self.refs[0]
     def attr(self): return self.refs[1]
     def target(self): return self.refs[0]
+    def type(self): return self.args[0] if self.args else None
 
 
 

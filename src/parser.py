@@ -198,7 +198,7 @@ class Parser(TokenStream):
 
     @property
     def block(self):
-        return self.current.blocks[-1] if len(self.current.blocks) > 0 else None
+        return self.current.blocks[-1]
 
     def parse_module_as_import(self, name, imports):
         self.imports = imports
@@ -256,8 +256,8 @@ class Parser(TokenStream):
         file = self.next(expect='ident').data.decode()
 
         if file in self.imports:
-            program, data, constants, user_types = self.imports[file]
-            self.functions.update(program)
+            functions, data, constants, user_types = self.imports[file]
+            self.functions.update(functions)
             self.data.update(data)
             self.constants.update(constants)
             self.types.update(user_types)
@@ -269,13 +269,13 @@ class Parser(TokenStream):
 
         tokens = Lexer.lex(source)
         parser = Parser(tokens, file)
-        program, data, constants, user_types = parser.parse_module_as_import(file + '.sf', self.imports)
-        self.functions.update(program)
+        functions, data, constants, user_types = parser.parse_module_as_import(file + '.sf', self.imports)
+        self.functions.update(functions)
         self.data.update(data)
         self.constants.update(constants)
         self.types.update(user_types)
 
-        self.imports[file] = program, data, constants, user_types
+        self.imports[file] = functions, data, constants, user_types
 
 
     def parse_decl(self):
@@ -293,7 +293,7 @@ class Parser(TokenStream):
             if self.next_if('='):
                 expr = self.parse_expr()
                 for i, name in enumerate(names):
-                    id = self.push(Code('decl', type, dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
+                    id = self.push(Code('decl', args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
                     # self.block.declarations[name.data.decode()] = id
             else:
                 if hasattr(type, '__iter__'):
@@ -409,7 +409,7 @@ class Parser(TokenStream):
             self.next(expect=':')
             type = self.next(expect='ident').data.decode()
             self.next_if(expect=',')
-            params[field] = (type, self.push(Code('param', type=type, dest=field)), i)
+            params[field] = (type, self.push(Code('param', args=(type, ), dest=field)), i)
             i += 1
         self.current.params = params
         returns = []
@@ -468,11 +468,11 @@ class Parser(TokenStream):
             self.next(expect='=')
             field_arg = self.parse_expr()
             self.next_if(expect=',')
-            add = self.push(Code('field', dest=self.implicit_name(), refs=(field_arg,), args=(field_name, i)))
+            add = self.push(Code('field', dest=self.implicit_name(), refs=(field_arg,), args=(None, field_name, i)))
             args.append(add)
             i += 1
 
-        stuff = self.push(Code('init', type=name.data.decode(), dest=self.implicit_name(), refs=tuple(args)))
+        stuff = self.push(Code('init', args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args)))
         return stuff
 
 
@@ -488,7 +488,7 @@ class Parser(TokenStream):
                 args.append(arg)
                 self.next_if(',')
 
-            return self.push(Code('syscall', type='int', dest=self.implicit_name(), refs=tuple(args)))
+            return self.push(Code('syscall', dest=self.implicit_name(), refs=tuple(args)))
         elif attribute.data.decode() == 'asm':
             self.next(expect='(')
             data = self.parse_string()
@@ -569,25 +569,25 @@ class Parser(TokenStream):
     def parse_cast(self, left):
         _ = self.next(expect='as')
         t = self.next(expect='ident').data.decode()
-        return self.push(Code('as', type=t, dest=left, refs=(left,)))
+        return self.push(Code('as', args=(t, ), dest=self.implicit_name(), refs=(left,)))
 
     def parse_number(self):
         value = self.next(expect='number').data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', 'int', self.implicit_name(), args=(index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('int', index, value)))
 
     def parse_real(self):
         value = self.next(expect='real').data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', 'real', self.implicit_name(), args=(index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('real', index, value)))
 
     def parse_string(self):
         value = self.next(expect='string').data.decode()
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', 'str', self.implicit_name(), args=(index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('str', index, value)))
 
     def parse_ident(self):
         """Name referring to an existing value"""
