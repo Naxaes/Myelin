@@ -17,6 +17,13 @@ class Code:
     refs:  tuple = ()               # Contains a reference to an instruction in code
     token: Optional[Token] = None
 
+    def lhs(self): return self.refs[0]
+    def rhs(self): return self.refs[1]
+    def expr(self): return self.refs[1]
+    def obj(self): return self.refs[0]
+    def attr(self): return self.refs[1]
+    def target(self): return self.refs[0]
+
 
 
 def c(**kwargs):

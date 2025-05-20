@@ -29,8 +29,16 @@ class Checker:
             if type(t) == dict:
                 self.user_types[n] = StructType(n, {x: self.builtins[y[0]] for x, y in t.items() if x != '__name__'})
 
+    def lookup_type(self, name):
+        if name in self.builtins:
+            return self.builtins[name]
+        elif name in self.user_types:
+            return self.user_types[name]
+        else:
+            raise f'Unknown type {name}'
+            
 
-    def get_arg(self, block, arg):
+    def type_of(self, block, arg):
         if type(arg) == str:
             if arg in self.mapping:
                 return self.mapping[arg]
@@ -84,33 +92,38 @@ class Checker:
                     if code.op == 'lit':
                         self.infer_lit(code)
                     elif code.op in ('+', '-', '*', '/', '%'):
-                        a = self.get_arg(block, code.refs[0])
-                        b = self.get_arg(block, code.refs[1])
+                        a = self.type_of(block, code.lhs())
+                        b = self.type_of(block, code.rhs())
                         t = self.type_check(a, b)
                         self.mapping[code.dest] = self.builtins[t.name]
-                    elif code.op in ('and', 'or', '==', '!=', '<'):
-                        a = self.get_arg(block, code.refs[0])
-                        b = self.get_arg(block, code.refs[1])
+                    elif code.op in ('and', 'or'):
+                        a = self.type_of(block, code.lhs())
+                        b = self.type_of(block, code.rhs())
+                        if a.name != 'bool' or b.name != 'bool': raise RuntimeError(f'Type error between {a} and {b}')
+                        self.mapping[code.dest] = self.builtins['bool']
+                    elif code.op in ('==', '!=', '<'):
+                        a = self.type_of(block, code.lhs())
+                        b = self.type_of(block, code.rhs())
                         self.type_check(a, b)
                         self.mapping[code.dest] = self.builtins['bool']
                     elif code.op == '.':
-                        obj = self.get_arg(block, code.refs[0])
-                        attr = code.refs[1]
+                        obj = self.type_of(block, code.obj())
+                        attr = code.attr()
                         self.mapping[code.dest] = obj.get_attribute(attr)
                     elif code.op == 'decl':
                         if code.refs:
-                            a = self.get_arg(block, code.refs[0])
-                            t = self.builtins[code.type]
+                            a = self.type_of(block, code.target())
+                            t = self.lookup_type(code.type)
                             self.mapping[code.dest] = self.type_check(a, t)
                         else:
                             assert False, "Not implemented"
                     elif code.op == 'multidecl':
-                        a = self.get_arg(block, code.refs[0])
+                        a = self.type_of(block, code.target())
                         for i, n in enumerate(code.args):
                             self.mapping[n] = a[i]
                     elif code.op == 'assign':
-                        a = self.get_arg(block, code.refs[0])
-                        b = self.get_arg(block, code.refs[1])
+                        a = self.type_of(block, code.target())
+                        b = self.type_of(block, code.expr())
                         self.type_check(a, b)
                     elif code.op == 'label':
                         pass
@@ -120,26 +133,29 @@ class Checker:
                         if len(f.params) != len(args):
                             raise RuntimeError(f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
                         for i, (name, t) in enumerate(f.params.items()):
-                            a = self.get_arg(block, args[i])
-                            self.type_check(self.builtins.get(t[0]) or self.user_types[t[0]], a)
+                            a = self.type_of(block, args[i])
+                            b = self.lookup_type(t[0])
+                            self.type_check(b, a)
                         if len(f.returns) == 0:
                             self.mapping[code.dest] = self.builtins[None]
                         elif len(f.returns) == 1:
-                            self.mapping[code.dest] = self.builtins[f.returns[0][1]]
+                            ret = f.returns[0][1]
+                            self.mapping[code.dest] = self.lookup_type(ret)
                         else:
-                            self.mapping[code.dest] = tuple(self.builtins[f.returns[i][1]] for i in range(len(f.returns)))
+                            self.mapping[code.dest] = tuple(self.lookup_type(f.returns[i][1]) for i in range(len(f.returns)))
                     elif code.op == '_':
                         f = code.args[0]
-                        self.mapping[code.dest] = self.builtins[f.returns[code.args[1]][1]]
+                        ret = f.returns[code.args[1]][1]
+                        self.mapping[code.dest] = self.lookup_type(ret)
                     elif code.op == 'param':
-                        self.mapping[code.dest] = self.builtins.get(code.type) or self.user_types[code.type]
+                        self.mapping[code.dest] = self.lookup_type(code.type)
                     elif code.op == 'field':
-                        self.mapping[code.dest] = self.builtins[code.type]
+                        self.mapping[code.dest] = self.lookup_type(code.type)
                     elif code.op == 'init':
-                        thing = self.builtins.get(code.type) or self.user_types[code.type]
+                        thing = self.lookup_type(code.type)
                         assert len(thing.fields) == len(code.refs)
                         for (n, t), arg in zip(thing.fields.items(), code.refs):
-                            actual = self.get_arg(block, arg)
+                            actual = self.type_of(block, arg)
                             expect = t
                             self.type_check(expect, actual)
                         self.mapping[code.dest] = thing
@@ -148,22 +164,22 @@ class Checker:
                     elif code.op == 'asm':
                         self.mapping[code.dest] = self.builtins[None]
                     elif code.op == 'index':
-                        target = self.get_arg(block, code.refs[0])
+                        target = self.type_of(block, code.target())
                         if target.name == 'str' or target.name == 'byte*':
                             self.mapping[code.dest] = self.builtins['byte']
                         else:
                             assert isinstance(target, PointerType), f"Cannot index a '{target}'"
                             self.mapping[code.dest] = target.pointee
                     elif code.op == '&':
-                        target = self.get_arg(block, code.refs[0])
+                        target = self.type_of(block, code.target())
                         self.mapping[code.dest] = PointerType(target)
                     elif code.op == 'as':
-                        obj = self.get_arg(block, code.refs[0])
-                        to  = self.builtins[code.type]
+                        obj = self.type_of(block, code.target())
+                        to  = self.lookup_type(code.type)
                         assert obj.can_coerce_to(to)
-                        self.mapping[block.instructions[code.refs[0]].dest] = to
+                        self.mapping[block.instructions[code.target()].dest] = to
                         self.mapping[code.dest] = to
-                        code.dest = block.instructions[code.refs[0]].dest
+                        code.dest = block.instructions[code.target()].dest
                     else:
                         assert False, f'Unknown instruction {code}'
 
@@ -180,8 +196,8 @@ class Checker:
                     if len(function.returns) != len(code.refs):
                         raise RuntimeError(f'Returning wrong amount of returns to {function.name}. Expected {len(function.returns)}, but got {len(code.refs)}')
                     for ret, arg in zip(function.returns, code.refs):
-                        arg = self.get_arg(block, arg)
-                        self.type_check(self.builtins[ret[1]], arg)
+                        arg = self.type_of(block, arg)
+                        self.type_check(self.lookup_type(ret[1]), arg)
                 else:
                     assert False, f"Unknown terminator {code}"
             self.types[function.name] = self.mapping
@@ -199,9 +215,9 @@ class Checker:
                 ty = self.registry.intern(ty)
                 self.mapping[code.dest] = ty
             case 'int':
-                self.mapping[code.dest] = self.builtins[code.type]
+                self.mapping[code.dest] = self.lookup_type(code.type)
             case 'real':
-                self.mapping[code.dest] = self.builtins[code.type]
+                self.mapping[code.dest] = self.lookup_type(code.type)
             case _:
                 raise TypeError(f'Unknown type {code}')
 

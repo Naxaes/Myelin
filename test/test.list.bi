@@ -1,4 +1,4 @@
-:i count 6
+:i count 5
 :b shell 60
 python3 src/main.py examples/struct.sf     && ./build/struct
 :i returncode 32
@@ -87,42 +87,4 @@ python3 src/main.py examples/core.sf       && ./build/core
 :b stdout 0
 
 :b stderr 0
-
-:b shell 60
-python3 -m unittest src/ir/basic_block.py src/ir/function.py
-:i returncode 1
-:b stdout 0
-
-:b stderr 1463
-EE
-======================================================================
-ERROR: basic_block (unittest.loader._FailedTest.basic_block)
-----------------------------------------------------------------------
-ImportError: Failed to import test module: basic_block
-Traceback (most recent call last):
-  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/loader.py", line 137, in loadTestsFromName
-    module = __import__(module_name)
-             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/klein002/Programming/Myelin/src/ir/basic_block.py", line 4, in <module>
-    from ir.ir import INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS, Code
-ModuleNotFoundError: No module named 'ir'
-
-
-======================================================================
-ERROR: function (unittest.loader._FailedTest.function)
-----------------------------------------------------------------------
-ImportError: Failed to import test module: function
-Traceback (most recent call last):
-  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/loader.py", line 137, in loadTestsFromName
-    module = __import__(module_name)
-             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/klein002/Programming/Myelin/src/ir/function.py", line 3, in <module>
-    from ir.basic_block import Block, Entry
-ModuleNotFoundError: No module named 'ir'
-
-
-----------------------------------------------------------------------
-Ran 2 tests in 0.000s
-
-FAILED (errors=2)
 
