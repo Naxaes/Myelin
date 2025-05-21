@@ -279,7 +279,7 @@ def make_macho_executable(output, code, data, generate_debug=False):
 
     entry = origin + all_header_s
 
-    header = f'BITS 64\norg {entry}'
+    header = f'BITS 64\norg {entry}\n'
     program = header+code+INTERNAL_CODE+INTERNAL_DATA+data+PAD_DATA
 
     with open(f'build/{output}.s', 'w') as file:

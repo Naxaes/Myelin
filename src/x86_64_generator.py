@@ -260,12 +260,15 @@ class X86_64_Generator:
         name = code.refs[0]
         name = name if type(name) == str else block.instructions[name].dest
         ty = self.type_of(function, code)
-        src = self.consume_reg(name)
-        dst = self.set_reg(code.dest)
-        self.code += f'\t; {code.dest} ({dst}) : {ty} = {name}\n\n'
-        if dst != src:
-            self.add_code('mov', dst, src)
-        self.vars[code.dest] = dst
+        if ty.size <= 8 or True:
+            src = self.consume_reg(name)
+            dst = self.set_reg(code.dest)
+            self.code += f'\t; {code.dest} ({dst}) : {ty} = {name}\n\n'
+            if dst != src:
+                self.add_code('mov', dst, src)
+            self.vars[code.dest] = dst
+        else:
+            assert False
 
     def generate_multidecl(self, function, block, code):
         for i, arg in enumerate(code.args):
@@ -422,12 +425,14 @@ class X86_64_Generator:
     def generate_lit(self, function, block, code):
         reg = self.set_reg(code.dest)
         t, index, data = code.args
-        if self.type_of(function, code).name == 'str' or self.type_of(function, code).name == 'byte*' or self.type_of(function, code).name.startswith('byte['):
-            self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {self.type_of(function, code)} = data_{index} ("{data}")')
-        elif self.type_of(function, code).name == 'real':
-            self.add_code('mov', reg, int(data), comment=f'{code.dest} : {self.type_of(function, code)} = {data}')
+        t = self.type_of(function, code)
+        if t.name == 'str' or t.name == 'byte*' or t.name.startswith('byte['):
+            self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {t} = data_{index} ("{data}")')
+        elif t.name == 'real':
+            self.add_code('mov', reg, int(data), comment=f'{code.dest} : {t} = {data}')
         else:
-            self.add_code('mov', reg, data, comment=f'{code.dest} : {self.type_of(function, code)} = {data}')
+            # assert t.name != 'inferred'
+            self.add_code('mov', reg, data, comment=f'{code.dest} : {t} = {data}')
         self.code += '\n'
 
     def set_reg(self, name):

@@ -62,6 +62,7 @@ KEYWORDS = {
     "import",
     "is",
     "inline",
+    "none",
     "or",
     "register",
     "restrict",

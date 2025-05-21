@@ -13,7 +13,7 @@ class Checker:
         self.mapping = {}
         self.builtins = {
             None:       PrimitiveType(name='inferred', size=0),
-            'byte':     PrimitiveType(name='byte',  size=1),
+            'byte':     PrimitiveType(name='byte', size=1),
             'int':      PrimitiveType(name='int',  size=8),
             'real':     PrimitiveType(name='real', size=8),
             'bool':     PrimitiveType(name='bool', size=1),
@@ -26,8 +26,10 @@ class Checker:
         self.types = []
         self.registry = TypeRegistry()
         for n, t in self.user_types.items():
-            if type(t) == dict:
+            if '__name__' in t:
                 self.user_types[n] = StructType(n, {x: self.builtins[y[0]] for x, y in t.items() if x != '__name__'})
+            else:
+                assert False, f'Unknown thing {t} for {n}'
 
     def lookup_type(self, name):
         if name in self.builtins:
@@ -36,7 +38,6 @@ class Checker:
             return self.user_types[name]
         else:
             raise RuntimeError(f'Unknown type {name}')
-            
 
     def type_of(self, block, arg):
         if type(arg) == str:
@@ -59,6 +60,8 @@ class Checker:
         if b.name == 'inferred':
             return a
         if b.is_subtype_of(a):
+            return a
+        if a.can_coerce_to(b):
             return a
 
         # TODO: Remove these hacks.
@@ -98,8 +101,11 @@ class Checker:
                 elif code.op in ('and', 'or'):
                     a = self.type_of(block, code.lhs())
                     b = self.type_of(block, code.rhs())
-                    if a.name != 'bool' or b.name != 'bool': raise RuntimeError(f'Type error between {a} and {b}')
-                    self.mapping[code.dest] = self.builtins['bool']
+                    if a.name == 'bool':
+                        if b.name != 'bool': raise RuntimeError(f'Type error between {a} and {b}')
+                        self.mapping[code.dest] = self.builtins['bool']
+                    else:
+                        raise RuntimeError(f'Type error between {a} and {b}')
                 elif code.op in ('==', '!=', '<'):
                     a = self.type_of(block, code.lhs())
                     b = self.type_of(block, code.rhs())
@@ -123,7 +129,7 @@ class Checker:
                 elif code.op == 'assign':
                     a = self.type_of(block, code.target())
                     b = self.type_of(block, code.expr())
-                    self.type_check(a, b)
+                    t = self.type_check(a, b)
                 elif code.op == 'label':
                     pass
                 elif code.op == 'call':
@@ -134,7 +140,7 @@ class Checker:
                     for i, (name, t) in enumerate(f.params.items()):
                         a = self.type_of(block, args[i])
                         b = self.lookup_type(t[0])
-                        self.type_check(b, a)
+                        t = self.type_check(b, a)
                     if len(f.returns) == 0:
                         self.mapping[code.dest] = self.builtins[None]
                     elif len(f.returns) == 1:
@@ -154,9 +160,9 @@ class Checker:
                     thing = self.lookup_type(code.type())
                     assert len(thing.fields) == len(code.refs)
                     for (n, t), arg in zip(thing.fields.items(), code.refs):
-                        actual = self.type_of(block, arg)
-                        expect = t
-                        self.type_check(expect, actual)
+                        a = self.type_of(block, arg)
+                        b = t
+                        t = self.type_check(a, b)
                     self.mapping[code.dest] = thing
                 elif code.op == 'syscall':
                     self.mapping[code.dest] = self.builtins[None]

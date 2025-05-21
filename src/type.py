@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Set, Dict
 from enum import Enum, auto
+import copy
 
 
 
@@ -20,6 +21,10 @@ class Type(ABC):
     @abstractmethod
     def __repr__(self):
         pass
+
+    def replace(self, other: 'Type'):
+        self.__class__ = copy.deepcopy(other.__class__)
+        self.__dict__  = copy.deepcopy(other.__dict__)
 
     def is_equal(self, other: 'Type') -> bool:
         return (
@@ -212,6 +217,9 @@ class OptionalType(Type):
     def __init__(self, base_type: Type):
         super().__init__(name=f"{base_type.name}?", size=base_type.size + 1)
         self.base_type = base_type
+
+    def can_coerce_to(self, other: 'Type') -> bool:
+        return self.is_equal(other) or self.base_type.is_equal(other)
 
     def __repr__(self):
         return f"{str(self.base_type)}?"

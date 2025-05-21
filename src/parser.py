@@ -34,50 +34,6 @@ class Module:
 
 
 class Parser(TokenStream):
-    """
-    <stmt> ::= <decl>
-            | <assign>
-            | <call>
-            | <if>
-            | <while>
-            | <switch>
-            | <block>
-            | <return>
-            | <continue>
-            | <break>
-
-    <expr> ::= <func>
-            | <type>
-            | <if>
-            | <while>
-            | <switch>
-            | <block>
-            | <call>
-            | <init>
-            | <index>
-            | <binary>
-            | <unary>
-            | <ident>
-            | <literal>
-
-    <decl> ::= <name> ':' <expr> '=' <expr>
-             | <name> ':' <expr>
-             | <name> ':=' <expr>
-
-    <assi> ::= <expr> '=' <expr>
-             | <expr> '[' <arg-list> ']'
-             | <expr> '.' <expr> ['.' <expr>]*          # Problematic if expr can be used as start (?)
-
-    <call> ::= <expr> '(' [<arg-list>] ')'              # Problematic if expr can be used as start, then '(' is a valid start token
-    <init> ::= <name> '{' [<arg-list>] '}'              # Problematic as '{' is a valid start token for block
-
-    <return>   ::= 'return'   [<expr> [',' <expr>]]     # Problematic as we don't know if expr is a new expression or part of the keyword
-    <continue> ::= 'continue' [<expr> [',' <expr>]]     # Problematic as we don't know if expr is a new expression or part of the keyword
-    <break>    ::= 'break'    [<expr> [',' <expr>]]     # Problematic as we don't know if expr is a new expression or part of the keyword
-
-    <func> ::= 'func' '(' [<param-list>] ')' ['->' <ret-list>] [<block>]
-    <type> ::= 'type' '{' [<field-list>] '}'
-    """
     BINARY_OPERATOR = ('+', '-', '*', '.', '&', '/', '%', '|', '^', '~', '!', '<', '>', '==', '!=', 'and', 'or', '<=', '>=', '<<', '>>')
     UNARY_OPERATOR = ('+', '-', '*', '.', '&', 'not')
     PRECEDENCE = {
@@ -390,17 +346,23 @@ class Parser(TokenStream):
         name = names[0]
 
         if self.next_if('('):
-            return self.parse_func_decl(name)
+            t = self.parse_func_decl(name)
         elif token := self.next_if('ident'):
             if token.data.decode() in ('int', 'real', 'string', 'ptr'):
-                return token.data.decode()
-            assert False, 'Not implemented'
+                t = token.data.decode()
+            else:
+                assert False, 'Not implemented'
         elif token := self.next_if('number'):
-            return int(token.data)
+            t = int(token.data)
         elif token := self.peek_if('struct'):
-            return self.parse_struct(name.data.decode())
+            t = self.parse_struct(name.data.decode())
         else:
             assert False, 'Not implemented'
+
+        if token := self.next_if('?'):
+            self.types[t+'?'] = { '__optional__': 'optional', 'type': t }
+            return t+'?'
+        return t
 
     def parse_func_decl(self, name):
         previous = self.current
@@ -538,6 +500,8 @@ class Parser(TokenStream):
             if self.peek_many(2)[1].kind == '{' and not self.in_expression_followed_by_block:
                 return self.parse_initializer()
             return self.parse_ident()
+        elif self.peek_if('none'):
+            return self.parse_none()
         elif self.peek_if('@'):
             return self.parse_compiler_attribute()
         elif self.next_if('('):
@@ -574,22 +538,31 @@ class Parser(TokenStream):
         return self.push(Code('as', args=(t, ), dest=self.implicit_name(), refs=(left,)))
 
     def parse_number(self):
-        value = self.next(expect='number').data
+        token = self.next(expect='number')
+        value = token.data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('int', index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('int', index, value), token=token))
 
     def parse_real(self):
-        value = self.next(expect='real').data
+        token = self.next(expect='real')
+        value = token.data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('real', index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('real', index, value), token=token))
 
     def parse_string(self):
-        value = self.next(expect='string').data.decode()
+        token = self.next(expect='string')
+        value = token.data.decode()
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('str', index, value)))
+        return self.push(Code('lit', self.implicit_name(), args=('str', index, value), token=token))
+
+    def parse_none(self):
+        token = self.next(expect='none')
+        index = len(self.data)
+        self.data[index] = token
+        return self.push(Code('lit', self.implicit_name(), args=('none', 0, 0), token=token))
 
     def parse_ident(self):
         """Name referring to an existing value"""
