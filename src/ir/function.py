@@ -25,10 +25,13 @@ class Function:
         self.params = parameters or {}
         self.returns = return_values or []
         self.blocks = blocks or []
-        self.predecessors = predecessors or {}
-        self.successors = successors or {}
         self.is_module = is_module
         self.is_main = is_main
+
+        self._predecessors = predecessors
+        self._successors = successors
+        self._live_in = None
+        self._live_out = None
 
     @staticmethod
     def create(name: str, parameters: list[dict[str, str]], return_values: list[str], instructions: list[dict]):
@@ -41,6 +44,43 @@ class Function:
             for code in block.instructions:
                 yield block, code
             yield block, block.terminator
+
+    def live_in(self):
+        if self._live_in is None:
+            self._live_in, self._live_out = self.live_variables()
+        return self._live_in
+
+    def live_out(self):
+        if self._live_out is None:
+            self._live_in, self._live_out = self.live_variables()
+        return self._live_out
+
+    @property
+    def predecessors(self):
+        if self._predecessors is None:
+            successors = self.successors
+            self._predecessors = {b.label: [] for b in self.blocks}
+            for block in self.blocks:
+                for successor in successors[block.label]:
+                    self._predecessors[successor.label].append(block)
+        return self._predecessors
+
+    @property
+    def successors(self):
+        if self._successors is None:
+            self._successors = {b.label: [] for b in self.blocks}
+            for block in self.blocks:
+                t = block.terminator
+                match t.op:
+                    case 'jmp':
+                        for i in t.args:
+                            self._successors[block.label].append(self.blocks[i])
+                    case 'br':
+                        for i in t.args:
+                            self._successors[block.label].append(self.blocks[i])
+                    case _:
+                        pass
+        return self._successors
 
     def block_at(self, label):
         for block in self.blocks:
@@ -241,7 +281,8 @@ class Function:
                 if i.dest and i.dest in result:
                     result.remove(i.dest)
                 for a in i.refs:
-                    result.add(a)
+                    if type(a) == str:
+                        result.add(a)
             return result
 
         return self.analyze(set(), set(), merge=merge, transfer=trans, forward=False)

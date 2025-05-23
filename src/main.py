@@ -1,5 +1,5 @@
 from lexer import Lexer
-from parser import Parser
+from parser import Parser, Builtin
 from checker import Checker
 from x86_64_generator import X86_64_Generator
 from ir.passes import remove_unused_functions

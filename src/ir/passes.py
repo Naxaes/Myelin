@@ -2,7 +2,7 @@ from parser import Module
 
 
 
-def remove_unused_functions(module: Module):
+def remove_unused_functions(module: Module, logger=None):
     graph = {}
     entry = None
 
@@ -26,5 +26,9 @@ def remove_unused_functions(module: Module):
         for n in graph[node]:
             if n not in visited:
                 queue.append(n)
+
+    removed = [name for name in module.functions if name not in visited]
+    if logger and removed:
+        logger(f"Removed unused functions: {', '.join(removed)}")
 
     module.functions = {name: func for name, func in module.functions.items() if name in visited}
