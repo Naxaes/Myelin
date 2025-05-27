@@ -1,3 +1,4 @@
+from ir.ir import Op
 from parser import Module
 
 
@@ -13,7 +14,7 @@ def remove_unused_functions(module: Module, logger=None):
         callers = set()
         for block in function.blocks:
             for instruction in block.instructions:
-                if instruction.op == 'call':
+                if instruction.op == Op.CALL:
                     callers.update(instruction.args)
 
         graph[function.name] = callers

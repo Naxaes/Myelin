@@ -1,7 +1,7 @@
-from typing import Callable, List, Any, Optional
+from typing import Callable, List, Any
 
 from ir.basic_block import Block, Entry
-from ir.ir import Code
+from ir.ir import Code, TERMINATORS, Op
 from ir.ir_parser import parse, build_cfg
 
 
@@ -38,6 +38,33 @@ class Function:
         self.blocks.append(block)
         return id
 
+    def create_cfg(self) -> tuple[dict[str, list[Block]], dict[str, list[Block]]]:
+        predecessors: dict[str, list[Block]] = {b.label: [] for b in self.blocks}
+        successors: dict[str, list[Block]] = {b.label: [] for b in self.blocks}
+
+        for i, block in enumerate(self.blocks):
+            last = block.terminator
+            assert last.op in TERMINATORS, f'Block {block.label} has unknown terminator {last.op}'
+            match last.op:
+                case Op.BR:
+                    left, right = last.args
+                    lhs, rhs = self.blocks[left], self.blocks[right]
+
+                    successors[block.label] = [lhs, rhs]
+                    predecessors[lhs.label].append(block)
+                    predecessors[rhs.label].append(block)
+                case Op.JMP:
+                    id, *_ = last.args
+                    target = self.blocks[id]
+                    successors[block.label] = [target]
+                    predecessors[target.label].append(block)
+                case Op.RET:
+                    successors[block.label] = []
+                case _:
+                    assert False, f'Unknown terminator {last.op} in block {block.label}'
+
+        return predecessors, successors
+
     @staticmethod
     def create(name: str, parameters: list[dict[str, str]], return_values: list[str], instructions: list[dict]):
         blocks, predecessors, successors = build_cfg(instructions)
@@ -63,28 +90,13 @@ class Function:
     @property
     def predecessors(self):
         if self._predecessors is None:
-            successors = self.successors
-            self._predecessors = {b.label: [] for b in self.blocks}
-            for block in self.blocks:
-                for successor in successors[block.label]:
-                    self._predecessors[successor.label].append(block)
+            self._predecessors, self._successors = self.create_cfg()
         return self._predecessors
 
     @property
     def successors(self):
         if self._successors is None:
-            self._successors = {b.label: [] for b in self.blocks}
-            for block in self.blocks:
-                t = block.terminator
-                match t.op:
-                    case 'jmp':
-                        for i in t.args:
-                            self._successors[block.label].append(self.blocks[i])
-                    case 'br':
-                        for i in t.args:
-                            self._successors[block.label].append(self.blocks[i])
-                    case _:
-                        pass
+            self._predecessors, self._successors = self.create_cfg()
         return self._successors
 
     def block_at(self, label):
@@ -213,11 +225,11 @@ class Function:
         Var = tuple[str, str]
 
         def gen(b: Block) -> set[Var]:
-            return set((name, b.offset) for name in b.gen())
+            return set((name, b.label) for name in b.gen())
 
         def kill(b: Block, in_: set[Var]) -> set[Var]:
             defined = b.gen()
-            return set((name, offset) for name, offset in in_ if name in defined)
+            return set((name, label) for name, label in in_ if name in defined)
 
         def merge(_: Block, s: list[set[Var]]):
             return set().union(*s)
@@ -227,7 +239,7 @@ class Function:
 
         all_variables = set().union(*[b.gen() for b in self.blocks])
 
-        parameters = set((v['name'], -1) for v in self.params)
+        parameters = set((v['name'], '__init__') for v in self.params)
         initial_state = set((v, None) for v in all_variables).union(parameters)
         return self.analyze(initial_state, initial_state, merge=merge, transfer=trans, forward=True)
 
@@ -310,14 +322,14 @@ class Function:
                     else:
                         result[key] = value
 
-                if pred.terminator and pred.terminator.op == 'br':
+                if pred.terminator and pred.terminator.op == Op.BR:
                     last = pred.terminator
                     cond, *_ = last.refs
                     left, right = last.args
                     if left == block.label:
                         # True branch
                         inst = next(x for x in pred.instructions if x.dest == cond)
-                        if inst.op == 'lt':
+                        if inst.op == Op.LT:
                             lhs, rhs = inst.refs
                             l = out_data[pred.label][lhs]
                             r = out_data[pred.label][rhs]
@@ -333,7 +345,7 @@ class Function:
                     elif right == block.label:
                         # False branch
                         inst = next(x for x in pred.instructions if x.dest == cond)
-                        if inst.op == 'lt':
+                        if inst.op == Op.LT:
                             lhs, rhs = inst.refs
                             l = out_data[pred.label][lhs]
                             r = out_data[pred.label][rhs]
@@ -353,20 +365,20 @@ class Function:
             result = in_.copy()
             for i in filter(lambda x: x.dest, block.instructions):
                 name = i.dest
-                if i.op == 'lit':
+                if i.op == Op.LIT:
                     arg = i.args[0]
                     result[name] = int(arg), int(arg)
                 elif i.refs:
                     lhs = result[i.refs[0]]
                     rhs = result[i.refs[1]]
-                    if i.op == 'add':
+                    if i.op == Op.ADD:
                         result[name] = lhs[0] + rhs[0], lhs[1] + rhs[1]
-                    elif i.op == 'sub':
+                    elif i.op == Op.SUB:
                         result[name] = lhs[0] - rhs[0], lhs[1] - rhs[1]
-                    elif i.op == 'mul':
+                    elif i.op == Op.MUL:
                         a, b, c, d = lhs[0] * rhs[0], lhs[0] * rhs[1], lhs[1] * rhs[0], lhs[1] * rhs[1]
                         result[name] = min(a, b, c, d), max(a, b, c, d)
-                    elif i.op == 'lt':
+                    elif i.op == Op.LT:
                         result[name] = lhs[1] < rhs[0], lhs[0] < rhs[1]
             return result
 
@@ -435,7 +447,7 @@ class Function:
         for b in self.blocks:
             for instr in b.instructions:
                 if instr.dest and instr.dest in out[b.label] and out[b.label][instr.dest] != '?':
-                    instr.op = 'lit'
+                    instr.op = Op.LIT
                     instr.args = (out[b.label][instr.dest],)
 
     def borrow_check(self, live_variables: dict[str, set[str]]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -463,11 +475,11 @@ class Function:
         # 3. Iterate backwards from the last node through all predecessors until we find one that has all predecessors in the visited set.
 
         blocks_with_allocations = {
-            (block, instruction.dest)
-            for block in self.blocks for instruction in block.instructions if instruction.op == 'alloc'
+            (block, instruction.dest, i)
+            for i, block in enumerate(self.blocks) for instruction in block.instructions if instruction.op == Op.ALLOC
         }
 
-        for start, name in blocks_with_allocations:
+        for start, name, i in blocks_with_allocations:
             visited = {}
             queue = [start]
             while queue:
@@ -479,7 +491,7 @@ class Function:
                         queue.append(successor)
 
             # TODO: This is not correct
-            node = sorted(visited.values(), key=lambda x: x.offset)[-1]
+            node = [b for b in self.blocks if b.label in visited][-1]
             queue = [node]
             v2 = set()
             while queue:
@@ -487,10 +499,10 @@ class Function:
                 predecessors = self.every_predecessor_of_until(current, start.label)
                 labels = {p.label for p in predecessors}
                 if labels.issubset(visited):
-                    if current.instructions[-1].op in ('ret', 'jmp', 'br'):
-                        current.instructions.insert(-1, Code(op='free', args=(name,)))
+                    if current.instructions[-1].op in (Op.RET, Op.JMP, Op.BR):
+                        current.instructions.insert(-1, Code(op=Op.FREE, args=(name,)))
                     else:
-                        current.instructions.append(Code(op='free', args=(name,)))
+                        current.instructions.append(Code(op=Op.FREE, args=(name,)))
                     break
                 queue.extend(p for p in predecessors if p.label in visited and p.label not in v2)
                 v2.update(labels)
@@ -503,7 +515,7 @@ class Function:
         for block in reversed(self.blocks):
             instructions = []
             for instruction in reversed(block.instructions):
-                if instruction.op in ('br', 'jmp', 'ret'):
+                if instruction.op in (Op.BR, Op.JMP, Op.RET):
                     if instruction.refs:
                         effected.update({arg for arg in instruction.refs})
                     instructions.append(instruction)
@@ -542,15 +554,15 @@ def cprop_transfer(block, in_vals):
     out_vals = dict(in_vals)
     for instr in block.instructions:
         if instr.dest:
-            if instr.op == 'lit':
+            if instr.op == Op.LIT:
                 out_vals[instr.dest] = instr.args[0]
             elif len(instr.args) >= 2 and args_is_known(instr.args[0]) and args_is_known(instr.args[1]):
                 a, b = instr.args
-                if instr.op == '+':
+                if instr.op == Op.ADD:
                     out_vals[instr.dest] = out_vals[a] + out_vals[b]
-                elif instr.op == '-':
+                elif instr.op == Op.SUB:
                     out_vals[instr.dest] = out_vals[a] - out_vals[b]
-                elif instr.op == '*':
+                elif instr.op == Op.MUL:
                     out_vals[instr.dest] = out_vals[a] * out_vals[b]
                 elif instr.op == '>':
                     out_vals[instr.dest] = out_vals[a] > out_vals[b]
@@ -620,25 +632,21 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='a', args=(47, )),
-            c(op='lit', dest='b', args=(42, )),
-            c(op='br',  refs=('cond', ), args=('left', 'right')),
-        ])
+            c(op=Op.LIT, dest='a', args=(47, )),
+            c(op=Op.LIT, dest='b', args=(42, )),
+        ], terminator=c(op=Op.BR,  refs=('cond', ), args=('left', 'right')))
         left = Block('left', [
-            c(op='lit', dest='b', args=(1,)),
-            c(op='lit', dest='c', args=(5,)),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.LIT, dest='b', args=(1,)),
+            c(op=Op.LIT, dest='c', args=(5,)),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='lit', dest='a', args=(2, )),
-            c(op='lit', dest='c', args=(10, )),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.LIT, dest='a', args=(2, )),
+            c(op=Op.LIT, dest='c', args=(10, )),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='sub', dest='d', refs=('a', 'c')),
-            c(op='print', refs=('d', )),
-            c(op='ret'),
-        ])
+            c(op=Op.SUB, dest='d', refs=('a', 'c')),
+            c(op=Op.PRINT, refs=('d', )),
+        ], terminator=c(op=Op.RET))
 
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
@@ -649,16 +657,16 @@ class TestFunction(unittest.TestCase):
 
         live_in, live_out = function.reaching_definitions()
         self.assertDictEqual(live_in, {
-            'entry': {('a', None), ('b', None), ('c', None), ('cond', -1), ('d', None)},
-            'left': {('a', 0), ('b', 0), ('c', None), ('cond', -1), ('d', None)},
-            'right': {('a', 0), ('b', 0), ('c', None), ('cond', -1), ('d', None)},
-            'end': {('a', 0), ('a', 2), ('b', 0), ('b', 1), ('c', 1), ('c', 2), ('cond', -1), ('d', None)},
+            'entry': {('a', None), ('b', None), ('c', None), ('cond', '__init__'), ('d', None)},
+            'left': {('a', 'entry'), ('b', 'entry'), ('c', None), ('cond', '__init__'), ('d', None)},
+            'right': {('a', 'entry'), ('b', 'entry'), ('c', None), ('cond', '__init__'), ('d', None)},
+            'end': {('a', 'entry'), ('a', 'right'), ('b', 'entry'), ('b', 'left'), ('c', 'left'), ('c', 'right'), ('cond', '__init__'), ('d', None)},
         })
         self.assertDictEqual(live_out, {
-            'entry': {('a', 0), ('b', 0), ('c', None), ('cond', -1), ('d', None)},
-            'left': {('a', 0), ('b', 1), ('c', 1), ('cond', -1), ('d', None)},
-            'right': {('a', 2), ('b', 0), ('c', 2), ('cond', -1), ('d', None)},
-            'end': {('a', 0), ('a', 2), ('b', 0), ('b', 1), ('c', 1), ('c', 2), ('cond', -1), ('d', 3)},
+            'entry': {('a', 'entry'), ('b', 'entry'), ('c', None), ('cond', '__init__'), ('d', None)},
+            'left': {('a', 'entry'), ('b', 'left'), ('c', 'left'), ('cond', '__init__'), ('d', None)},
+            'right': {('a', 'right'), ('b', 'entry'), ('c', 'right'), ('cond', '__init__'), ('d', None)},
+            'end': {('a', 'entry'), ('a', 'right'), ('b', 'entry'), ('b', 'left'), ('c', 'left'), ('c', 'right'), ('cond', '__init__'), ('d', 'end')},
         })
 
     def test_very_busy_expressions(self):
@@ -684,26 +692,22 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='a', args=(34,)),
-            c(op='lit', dest='b', args=(35,)),
-            c(op='br', args=('left', 'right'), refs=('cond', )),
-        ])
+            c(op=Op.LIT, dest='a', args=(34,)),
+            c(op=Op.LIT, dest='b', args=(35,)),
+        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
         left = Block('left', [
-            c(op='sub', dest='x', refs=('b', 'a')),
-            c(op='sub', dest='y', refs=('a', 'b')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.SUB, dest='x', refs=('b', 'a')),
+            c(op=Op.SUB, dest='y', refs=('a', 'b')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='sub', dest='y', refs=('b', 'a')),
-            c(op='lit', dest='a', args=(0, )),
-            c(op='sub', dest='x', refs=('a', 'b')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.SUB, dest='y', refs=('b', 'a')),
+            c(op=Op.LIT, dest='a', args=(0, )),
+            c(op=Op.SUB, dest='x', refs=('a', 'b')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='print', refs=('x', )),
-            c(op='print', refs=('y',)),
-            c(op='ret'),
-        ])
+            c(op=Op.PRINT, refs=('x', )),
+            c(op=Op.PRINT, refs=('y',)),
+        ], terminator=c(op=Op.RET))
 
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
@@ -713,7 +717,7 @@ class TestFunction(unittest.TestCase):
         )
         _, busy_out = function.very_busy_expressions()
         self.assertDictEqual(busy_out, {
-            'entry': {('sub', 'b', 'a')},
+            'entry': {(Op.SUB, 'b', 'a')},
             'left':  set(),
             'right': set(),
             'end': set(),
@@ -742,26 +746,22 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='x', args=(34,)),
-            c(op='lit', dest='y', args=(35,)),
-            c(op='gt',  dest='cond', refs=('x', 'y')),
-            c(op='br', args=('left', 'right'), refs=('cond', )),
-        ])
+            c(op=Op.LIT, dest='x', args=(34,)),
+            c(op=Op.LIT, dest='y', args=(35,)),
+            c(op=Op.GT,  dest='cond', refs=('x', 'y')),
+        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
         left = Block('left', [
-            c(op='lit', dest='one', args=(1, )),
-            c(op='add', dest='z', refs=('x', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.LIT, dest='one', args=(1, )),
+            c(op=Op.ADD, dest='z', refs=('x', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='add', dest='z', refs=('x', 'x')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.ADD, dest='z', refs=('x', 'x')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='lit', dest='zero', args=(0, )),
-            c(op='add', dest='x', refs=('z', 'zero')),
-            c(op='print', refs=('x',)),
-            c(op='ret'),
-        ])
+            c(op=Op.LIT, dest='zero', args=(0, )),
+            c(op=Op.ADD, dest='x', refs=('z', 'zero')),
+            c(op=Op.PRINT, refs=('x',)),
+        ], terminator=c(op=Op.RET))
 
         function = Function(
             'test', [], [],
@@ -803,23 +803,19 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='x', args=(0, )),
-            c(op='lit', dest='y', args=(10,)),
-            c(op='jmp', args=('header', )),
-        ])
+            c(op=Op.LIT, dest='x', args=(0, )),
+            c(op=Op.LIT, dest='y', args=(10,)),
+        ], terminator=c(op=Op.JMP, args=('header', )))
         header = Block('header', [
-            c(op='lt', dest='cond', refs=('x', 'y')),
-            c(op='br', args=('body', 'end'), refs=('cond', )),
-        ])
+            c(op=Op.LT, dest='cond', refs=('x', 'y')),
+        ], terminator=c(op=Op.BR, args=('body', 'end'), refs=('cond', )))
         body = Block('body', [
-            c(op='lit', dest='one', args=(1, )),
-            c(op='add', dest='x', refs=('x', 'one')),
-            c(op='jmp', args=('header',)),
-        ])
+            c(op=Op.LIT, dest='one', args=(1, )),
+            c(op=Op.ADD, dest='x', refs=('x', 'one')),
+        ], terminator=c(op=Op.JMP, args=('header',)))
         end = Block('end', [
-            c(op='print', refs=('x',)),
-            c(op='ret'),
-        ])
+            c(op=Op.PRINT, refs=('x',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [], [],
             [entry, header, body, end],
@@ -913,14 +909,14 @@ class TestFunction(unittest.TestCase):
                 ret cond
         end
         """, [])
-        b0 = Block('b0', [c(op='jmp', args=('b1',))])
-        b1 = Block('b1', [c(op='br',  args=('b2', 'b4'), refs=('cond', ))])
-        b2 = Block('b2', [c(op='jmp', args=('b3',))])
-        b3 = Block('b3', [c(op='br',  args=('b1', 'b5'), refs=('cond', ))])
-        b4 = Block('b4', [c(op='jmp', args=('b5',))])
-        b5 = Block('b5', [c(op='jmp', args=('b6',))])
-        b6 = Block('b6', [c(op='br',  args=('b5', 'b7'), refs=('cond', ))])
-        b7 = Block('b7', [c(op='ret', refs=('cond', ))])
+        b0 = Block('b0', [], terminator=c(op=Op.JMP, args=('b1',)))
+        b1 = Block('b1', [], terminator=c(op=Op.BR,  args=('b2', 'b4'), refs=('cond', )))
+        b2 = Block('b2', [], terminator=c(op=Op.JMP, args=('b3',)))
+        b3 = Block('b3', [], terminator=c(op=Op.BR,  args=('b1', 'b5'), refs=('cond', )))
+        b4 = Block('b4', [], terminator=c(op=Op.JMP, args=('b5',)))
+        b5 = Block('b5', [], terminator=c(op=Op.JMP, args=('b6',)))
+        b6 = Block('b6', [], terminator=c(op=Op.BR,  args=('b5', 'b7'), refs=('cond', )))
+        b7 = Block('b7', [], terminator=c(op=Op.RET, refs=('cond', )))
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
             [b0, b1, b2, b3, b4, b5, b6, b7],
@@ -982,27 +978,23 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='one', args=(1,)),
-            c(op='lit', dest='x', args=(22,)),
-            c(op='lit', dest='y', args=(44,)),
-            c(op='ref', dest='p', refs=('x', )),
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='ref', dest='q', refs=('y', )),
-            c(op='br', args=('left', 'right'), refs=('cond', )),
-        ])
+            c(op=Op.LIT, dest='one', args=(1,)),
+            c(op=Op.LIT, dest='x', args=(22,)),
+            c(op=Op.LIT, dest='y', args=(44,)),
+            c(op=Op.REF, dest='p', refs=('x', )),
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+            c(op=Op.REF, dest='q', refs=('y', )),
+        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
         left = Block('left', [
-            c(op='move', dest='p', refs=('q', )),
-            c(op='add', dest='x', refs=('x', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.MOVE, dest='p', refs=('q', )),
+            c(op=Op.ADD, dest='x', refs=('x', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='print', refs=('p',)),
-            c(op='ret'),
-        ])
+            c(op=Op.PRINT, refs=('p',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [], [],
             [entry, left, right, end],
@@ -1042,28 +1034,24 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='one', args=(1,)),
-            c(op='lit', dest='x', args=(22,)),
-            c(op='lit', dest='y', args=(44,)),
-            c(op='ref', dest='p', refs=('x',)),
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='ref', dest='q', refs=('y',)),
-            c(op='br', args=('left', 'right'), refs=('cond',)),
-        ])
+            c(op=Op.LIT, dest='one', args=(1,)),
+            c(op=Op.LIT, dest='x', args=(22,)),
+            c(op=Op.LIT, dest='y', args=(44,)),
+            c(op=Op.REF, dest='p', refs=('x',)),
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+            c(op=Op.REF, dest='q', refs=('y',)),
+        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond',)))
         left = Block('left', [
-            c(op='move', dest='p', refs=('q',)),
-            c(op='add', dest='x', refs=('x', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.MOVE, dest='p', refs=('q',)),
+            c(op=Op.ADD, dest='x', refs=('x', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='print', refs=('p',)),
-            c(op='ret'),
-        ])
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+            c(op=Op.PRINT, refs=('p',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
             [entry, left, right, end],
@@ -1102,29 +1090,25 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='one', args=(1,)),
-            c(op='lit', dest='x', args=(22,)),
-            c(op='lit', dest='y', args=(44,)),
-            c(op='ref', dest='p', refs=('x',)),
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='ref', dest='q', refs=('y',)),
-            c(op='ref', dest='r', refs=('y',)),
-            c(op='br', args=('left', 'right'), refs=('cond',)),
-        ])
+            c(op=Op.LIT, dest='one', args=(1,)),
+            c(op=Op.LIT, dest='x', args=(22,)),
+            c(op=Op.LIT, dest='y', args=(44,)),
+            c(op=Op.REF, dest='p', refs=('x',)),
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+            c(op=Op.REF, dest='q', refs=('y',)),
+            c(op=Op.REF, dest='r', refs=('y',)),
+        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond',)))
         left = Block('left', [
-            c(op='move', dest='p', refs=('q',)),
-            c(op='add', dest='x', refs=('x', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.MOVE, dest='p', refs=('q',)),
+            c(op=Op.ADD, dest='x', refs=('x', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         right = Block('right', [
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='jmp', args=('end',)),
-        ])
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+        ], terminator=c(op=Op.JMP, args=('end',)))
         end = Block('end', [
-            c(op='add', dest='y', refs=('y', 'one')),
-            c(op='print', refs=('r',)),
-            c(op='ret'),
-        ])
+            c(op=Op.ADD, dest='y', refs=('y', 'one')),
+            c(op=Op.PRINT, refs=('r',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
             [entry, left, right, end],
@@ -1161,27 +1145,24 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='c', args=(32,)),
-            c(op='alloc', dest='a', refs=('c',)),
-            c(op='lit', dest='i', args=(0,)),
-            c(op='lit', dest='one', args=(1,)),
-            c(op='jmp', args=('loop',)),
-        ])
+            c(op=Op.LIT, dest='c', args=(32,)),
+            c(op=Op.ALLOC, dest='a', refs=('c',)),
+            c(op=Op.LIT, dest='i', args=(0,)),
+            c(op=Op.LIT, dest='one', args=(1,)),
+        ], terminator=c(op=Op.JMP, args=('loop',)))
         loop = Block('loop', [
-            c(op='lit', dest='two', args=(2,)),
-            c(op='mul', dest='val', refs=('i', 'two')),
-            c(op='set', refs=('a', 'i', 'val')),
-            c(op='add', dest='i', refs=('i', 'one')),
-            c(op='lt', dest='cond', refs=('i', 'c')),
-            c(op='br', args=('loop', 'end'), refs=('cond',)),
-        ])
+            c(op=Op.LIT, dest='two', args=(2,)),
+            c(op=Op.MUL, dest='val', refs=('i', 'two')),
+            c(op=Op.SET, refs=('a', 'i', 'val')),
+            c(op=Op.ADD, dest='i', refs=('i', 'one')),
+            c(op=Op.LT, dest='cond', refs=('i', 'c')),
+        ], terminator=c(op=Op.BR, args=('loop', 'end'), refs=('cond',)))
         end = Block('end', [
-            c(op='lit', dest='x', args=(30, )),
-            c(op='get', dest='y', refs=('a', 'x')),
-            c(op='print', refs=('a',)),
-            c(op='print', refs=('y',)),
-            c(op='ret'),
-        ])
+            c(op=Op.LIT, dest='x', args=(30, )),
+            c(op=Op.GET, dest='y', refs=('a', 'x')),
+            c(op=Op.PRINT, refs=('a',)),
+            c(op=Op.PRINT, refs=('y',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
             [entry, loop, end],
@@ -1189,7 +1170,7 @@ class TestFunction(unittest.TestCase):
             {'entry': [loop], 'loop': [loop, end], 'end': []},
         )
         function.automatically_drop()
-        assert function.blocks[-1].instructions[-2].op == 'free'
+        assert function.blocks[-1].instructions[-1].op == Op.FREE, "Last instruction should be a free operation, but got {}".format(function.blocks[-1].instructions[-2])
 
     @unittest.skip("Need to fix explicit free")
     def test_automatic_free_2(self):
@@ -1213,8 +1194,8 @@ class TestFunction(unittest.TestCase):
         function = Function.create(f['name'], f['args'], f['rets'], f['instrs'])
         function.automatically_drop()
         print(function.block_at('true').instructions)
-        assert function.block_at('true').instructions[-2]['op'] == 'free'
-        assert function.block_at('false').instructions[-2]['op'] == 'free'
+        assert function.block_at('true').instructions[-2]['op'] == Op.FREE
+        assert function.block_at('false').instructions[-2]['op'] == Op.FREE
 
     def test_static_slice(self):
         module = parse("""
@@ -1240,27 +1221,23 @@ class TestFunction(unittest.TestCase):
         end
         """, [])
         entry = Block('entry', [
-            c(op='lit', dest='sum', args=(0,)),
-            c(op='lit', dest='product', args=(1,)),
-            c(op='lit', dest='w', args=(7,)),
-            c(op='jmp', args=('header',)),
-        ])
+            c(op=Op.LIT, dest='sum', args=(0,)),
+            c(op=Op.LIT, dest='product', args=(1,)),
+            c(op=Op.LIT, dest='w', args=(7,)),
+        ], terminator=c(op=Op.JMP, args=('header',)))
         header = Block('header', [
-            c(op='lit', dest='i', args=(1,)),
-            c(op='lt', dest='cond', refs=('i', 'n')),
-            c(op='br', args=('body', 'end'), refs=('cond',)),
-        ])
+            c(op=Op.LIT, dest='i', args=(1,)),
+            c(op=Op.LT, dest='cond', refs=('i', 'n')),
+        ], terminator=c(op=Op.BR, args=('body', 'end'), refs=('cond',)))
         body = Block('body', [
-            c(op='add', dest='temp', refs=('i', 'w')),
-            c(op='add', dest='sum', refs=('sum', 'temp')),
-            c(op='mul', dest='product', refs=('product', 'i')),
-            c(op='jmp', args=('header',)),
-        ])
+            c(op=Op.ADD, dest='temp', refs=('i', 'w')),
+            c(op=Op.ADD, dest='sum', refs=('sum', 'temp')),
+            c(op=Op.MUL, dest='product', refs=('product', 'i')),
+        ], terminator=c(op=Op.JMP, args=('header',)))
         end = Block('end', [
-            c(op='print', refs=('sum',)),
-            c(op='print', refs=('product',)),
-            c(op='ret'),
-        ])
+            c(op=Op.PRINT, refs=('sum',)),
+            c(op=Op.PRINT, refs=('product',)),
+        ], terminator=c(op=Op.RET))
         function = Function(
             'test', [], [],
             [entry, header, body, end],
@@ -1270,24 +1247,20 @@ class TestFunction(unittest.TestCase):
         slice = function.static_slice('sum')
         self.assertDictEqual(slice, {
             'entry': [
-                c(op='lit', dest='sum', args=(0,)),
-                c(op='lit', dest='w', args=(7,)),
-                c(op='jmp', args=('header',))
+                c(op=Op.LIT, dest='sum', args=(0,)),
+                c(op=Op.LIT, dest='w', args=(7,)),
             ],
             'header': [
-                c(op='lit', dest='i', args=(1,)),
-                c(op='lt', dest='cond', refs=('i', 'n')),
-                c(op='br', args=('body', 'end'), refs=('cond',)),
+                c(op=Op.LIT, dest='i', args=(1,)),
+                c(op=Op.LT, dest='cond', refs=('i', 'n')),
             ],
             'body': [
-                c(op='add', dest='temp', refs=('i', 'w')),
-                c(op='add', dest='sum', refs=('sum', 'temp')),
-                c(op='jmp', args=('header',)),
+                c(op=Op.ADD, dest='temp', refs=('i', 'w')),
+                c(op=Op.ADD, dest='sum', refs=('sum', 'temp')),
             ],
             'end': [
-                c(op='print', refs=('sum',)),
-                c(op='ret'),
-            ]
+                c(op=Op.PRINT, refs=('sum',)),
+            ],
         })
 
 

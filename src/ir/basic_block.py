@@ -1,7 +1,7 @@
 from typing import Optional, Any
 from collections import namedtuple
 
-from ir.ir import INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS, Code
+from ir.ir import Op, Code, INSTRUCTIONS, SIDE_EFFECTS, TERMINATORS
 
 Entry = namedtuple('Entry', ('value', 'variable'))
 
@@ -63,7 +63,7 @@ class Block:
         1. Order arguments for commutative instructions in alphabetical order.
         """
         for instruction in self.instructions:
-            if instruction.refs and instruction.op in ('add', 'mul', 'eq', 'ne'):
+            if instruction.refs and instruction.op in (Op.ADD, Op.MUL, Op.EQ, Op.NEQ):
                 instruction.refs = tuple(sorted(instruction.refs))
 
     def to_ssa(self) -> None:
@@ -92,26 +92,26 @@ class Block:
 
 
     def remove_nop(self):
-        self.instructions = [i for i in self.instructions if i.op != 'nop']
+        self.instructions = [i for i in self.instructions if i.op != Op.NOP]
 
     def lvn(self, table: dict[int, Entry], environment: dict[str, int]) -> tuple[dict[int, Entry], dict[str, int]]:
         table = table.copy()
         environment = environment.copy()
-        value: tuple[str, Any, Any]
+        value: tuple[Op, Any, Any]
 
         for instruction in self.instructions:
             if instruction.dest:
                 name = instruction.dest
-                if instruction.op == 'lit':
+                if instruction.op == Op.LIT:
                     value = (instruction.op, instruction.args[0], None)
                     if (identical := find(table, value)) is not None:
                         # If we found an identical value, we'll use that value instead of this, so we can delete it.
-                        instruction.op = 'nop'
+                        instruction.op = Op.NOP
                         environment[name] = identical
                     else:
                         environment[name] = len(table)
                         table[len(table)] = Entry(value, name)
-                elif instruction.op in ('ref', 'move', 'alloc'):
+                elif instruction.op in (Op.REF, Op.MOVE, Op.ALLOC):
                     value = (instruction.op, environment[instruction.refs[0]], None)
                     instruction.refs  = (table[value[1]].variable,)
                     environment[name] = len(table)
@@ -120,7 +120,7 @@ class Block:
                     value = (instruction.op, environment[instruction.refs[0]], environment[instruction.refs[1]])
                     if (identical := find(table, value)) is not None:
                         # If we found an identical value, we'll use that value instead of this, so we can delete it.
-                        instruction.op = 'nop'
+                        instruction.op = Op.NOP
                         environment[name] = identical
                     else:
                         print(f'Found duplicate value for {name}')
@@ -144,7 +144,7 @@ class Block:
             if i.op in SIDE_EFFECTS:
                 # All instructions with side effects must be kept
                 used.update(i.refs)
-            elif i.dest and i.dest not in used or i.op == 'nop':
+            elif i.dest and i.dest not in used or i.op == Op.NOP:
                 # Instructions that haven't been used can be removed
                 self.instructions.remove(i)
             elif i.refs:
@@ -166,7 +166,7 @@ class Block:
                 print(f'Modifying variable {name} while loaned by {loaned_by}')
                 raise RuntimeError(f'Modifying variable {name} while loaned by {loaned_by}')
 
-            if instruction.op == 'ref':
+            if instruction.op == Op.REF:
                 arg = instruction.refs[0]
                 if arg in loaned_variables:
                     loaned_variables[arg].add(instruction.dest)
@@ -174,7 +174,7 @@ class Block:
                 else:
                     loaned_variables[arg] = {instruction.dest}
                     print(f'{arg} was loaned by {instruction.dest}: loans = {loaned_variables}')
-            elif instruction.op == 'move':
+            elif instruction.op == Op.MOVE:
                 arg = instruction.refs[0]
                 name = instruction.dest
                 for key, values in list(loaned_variables.items()):
@@ -202,9 +202,9 @@ class Block:
 
     def check_drops(self, dropees: set[str]):
         for instruction in self.instructions:
-            if instruction.op == 'alloc':
+            if instruction.op == Op.ALLOC:
                 dropees.add(instruction.dest)
-            elif instruction.op == 'free':
+            elif instruction.op == Op.FREE:
                 arg = instruction.refs[0]
                 if arg in dropees:
                     dropees.remove(arg)
@@ -230,149 +230,136 @@ class TestBasicBlock(unittest.TestCase):
         { 'x', 'y', 'z' }
         """
         instructions = [
-            c(op="add", dest="a", refs=("x", "y")),
-            c(op="add", dest="b", refs=("a", "z")),
-            c(op="add", dest="c", refs=("a", "b")),
-            c(op='ret')
+            c(op=Op.ADD, dest="a", refs=("x", "y")),
+            c(op=Op.ADD, dest="b", refs=("a", "z")),
+            c(op=Op.ADD, dest="c", refs=("a", "b")),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         used = block.use()
         self.assertEqual(used, {'x', 'y', 'z'})
 
     def test_dce_remove_dead_code(self):
         instructions = [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="lit", dest="c", args=(1, )),
-            c(op="add", dest="d", refs=("a", "b")),
-            c(op="add", dest="e", refs=("c", "d")),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.LIT, dest="c", args=(1, )),
+            c(op=Op.ADD, dest="d", refs=("a", "b")),
+            c(op=Op.ADD, dest="e", refs=("c", "d")),
+            c(op=Op.PRINT, refs=("d", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.dce()
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="add", dest="d", refs=("a", "b")),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.ADD, dest="d", refs=("a", "b")),
+            c(op=Op.PRINT, refs=("d", )),
         ])
 
     def test_dce_dont_remove_reuse_of_variable(self):
         instructions = [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="add", dest="c", refs=("a", "b")),
-            c(op="lit", dest="a", args=(3, )),
-            c(op="add", dest="d", refs=("a", "c")),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.ADD, dest="c", refs=("a", "b")),
+            c(op=Op.LIT, dest="a", args=(3, )),
+            c(op=Op.ADD, dest="d", refs=("a", "c")),
+            c(op=Op.PRINT, refs=("d", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.dce()
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="add", dest="c", refs=("a", "b")),
-            c(op="lit", dest="a", args=(3, )),
-            c(op="add", dest="d", refs=("a", "c")),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.ADD, dest="c", refs=("a", "b")),
+            c(op=Op.LIT, dest="a", args=(3, )),
+            c(op=Op.ADD, dest="d", refs=("a", "c")),
+            c(op=Op.PRINT, refs=("d", )),
         ])
 
     def test_dce_with_args(self):
         instructions = [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="lit", dest="c", args=(1, )),
-            c(op="add", dest="d", refs=("a", "b")),
-            c(op="add", dest="e", refs=("c", "d")),
-            c(op="lit", dest="f", args=(1, )),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.LIT, dest="c", args=(1, )),
+            c(op=Op.ADD, dest="d", refs=("a", "b")),
+            c(op=Op.ADD, dest="e", refs=("c", "d")),
+            c(op=Op.LIT, dest="f", args=(1, )),
+            c(op=Op.PRINT, refs=("d", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.dce(keep={"c", "f"})
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="lit", dest="b", args=(2, )),
-            c(op="lit", dest="c", args=(1, )),
-            c(op="add", dest="d", refs=("a", "b")),
-            c(op="lit", dest="f", args=(1, )),
-            c(op="print", refs=("d", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.LIT, dest="b", args=(2, )),
+            c(op=Op.LIT, dest="c", args=(1, )),
+            c(op=Op.ADD, dest="d", refs=("a", "b")),
+            c(op=Op.LIT, dest="f", args=(1, )),
+            c(op=Op.PRINT, refs=("d", )),
         ])
 
     def test_lvn_remove_duplicate_values(self):
         instructions = [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="lit", dest="b", args=(4, )),
-            c(op="add", dest="sum1", refs=("a", "b")),
-            c(op="add", dest="sum2", refs=("a", "b")),
-            c(op="mul", dest="prod", refs=("sum1", "sum2")),
-            c(op="mul", dest="x", refs=("sum1", "sum2")),
-            c(op="print", refs=("x", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.LIT, dest="b", args=(4, )),
+            c(op=Op.ADD, dest="sum1", refs=("a", "b")),
+            c(op=Op.ADD, dest="sum2", refs=("a", "b")),
+            c(op=Op.MUL, dest="prod", refs=("sum1", "sum2")),
+            c(op=Op.MUL, dest="x", refs=("sum1", "sum2")),
+            c(op=Op.PRINT, refs=("x", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.lvn({}, {})
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(4, )),
-            c(op="add", dest="sum1", refs=("a", "a")),
-            c(op="mul", dest="prod", refs=("sum1", "sum1")),
-            c(op="print", refs=("prod", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(4, )),
+            c(op=Op.ADD, dest="sum1", refs=("a", "a")),
+            c(op=Op.MUL, dest="prod", refs=("sum1", "sum1")),
+            c(op=Op.PRINT, refs=("prod", )),
         ])
 
     def test_lvn_with_overwritten_variable(self):
         instructions = [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="lit", dest="b", args=(1, )),
-            c(op="add", dest="x", refs=("a", "b")),   # Should replace b with a
-            c(op="print", refs=("x", )),
-            c(op="lit", dest="x", args=(3, )),          # Should be renamed to x'
-            c(op="add", dest="y", refs=("a", "b")),   # Should be replaced by x
-            c(op="add", dest="z", refs=("x", "y")),   # Should replace x to x' and y to x
-            c(op="print", refs=("z", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.LIT, dest="b", args=(1, )),
+            c(op=Op.ADD, dest="x", refs=("a", "b")),   # Should replace b with a
+            c(op=Op.PRINT, refs=("x", )),
+            c(op=Op.LIT, dest="x", args=(3, )),          # Should be renamed to x'
+            c(op=Op.ADD, dest="y", refs=("a", "b")),   # Should be replaced by x
+            c(op=Op.ADD, dest="z", refs=("x", "y")),   # Should replace x to x' and y to x
+            c(op=Op.PRINT, refs=("z", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.to_ssa()
         block.lvn({}, {})
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="add", dest="x", refs=("a", "a")),
-            c(op="print", refs=("x", )),
-            c(op="lit", dest="x'0", args=(3, )),
-            c(op="add", dest="z", refs=("x'0", "x")),
-            c(op="print", refs=("z", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.ADD, dest="x", refs=("a", "a")),
+            c(op=Op.PRINT, refs=("x", )),
+            c(op=Op.LIT, dest="x'0", args=(3, )),
+            c(op=Op.ADD, dest="z", refs=("x'0", "x")),
+            c(op=Op.PRINT, refs=("z", )),
         ])
 
     def test_lvn_with_overwritten_variable_multiple_times(self):
         instructions = [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="lit", dest="a", args=(1, )),           # Should be removed
-            c(op="add", dest="a", refs=("a", "a")),      # Should be renamed to a''
-            c(op="print", refs=("a", )),                 # Should be replaced by a''
-            c(op="lit", dest="a", args=(3, )),           # Should be renamed to a'''
-            c(op="add", dest="a", refs=("a", "a")),      # Should be replaced by a''' and a''' and renamed to a''''
-            c(op="print", refs=("a", )),                 # Should be replaced by a''''
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.LIT, dest="a", args=(1, )),           # Should be removed
+            c(op=Op.ADD, dest="a", refs=("a", "a")),      # Should be renamed to a''
+            c(op=Op.PRINT, refs=("a", )),                 # Should be replaced by a''
+            c(op=Op.LIT, dest="a", args=(3, )),           # Should be renamed to a'''
+            c(op=Op.ADD, dest="a", refs=("a", "a")),      # Should be replaced by a''' and a''' and renamed to a''''
+            c(op=Op.PRINT, refs=("a", )),                 # Should be replaced by a''''
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         block.to_ssa()
         block.lvn({}, {})
         print(*block.instructions, sep='\n')
         self.assertEqual(block.instructions, [
-            c(op="lit", dest="a", args=(1, )),
-            c(op="add", dest="a'1", refs=("a", "a")),
-            c(op="print", refs=("a'1", )),
-            c(op="lit", dest="a'2", args=(3, )),
-            c(op="add", dest="a'3", refs=("a'2", "a'2")),
-            c(op="print", refs=("a'3", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="a", args=(1, )),
+            c(op=Op.ADD, dest="a'1", refs=("a", "a")),
+            c(op=Op.PRINT, refs=("a'1", )),
+            c(op=Op.LIT, dest="a'2", args=(3, )),
+            c(op=Op.ADD, dest="a'3", refs=("a'2", "a'2")),
+            c(op=Op.PRINT, refs=("a'3", )),
         ])
 
     def test_borrowing(self):
@@ -383,15 +370,14 @@ class TestBasicBlock(unittest.TestCase):
         a += 1          # 'a' is mutated, but 'b' is not borrowed
         """
         instructions = [
-            c(op="lit", dest="one", args=(1, )),
-            c(op="lit", dest="x", args=(22, )),
-            c(op="lit", dest="y", args=(44, )),
-            c(op="ref", dest="p", refs=("x", )),
-            c(op="add", dest="y", refs=("y", "one")),
-            c(op="ref", dest="q", refs=("y", )),
-            c(op='ret')
+            c(op=Op.LIT, dest="one", args=(1, )),
+            c(op=Op.LIT, dest="x", args=(22, )),
+            c(op=Op.LIT, dest="y", args=(44, )),
+            c(op=Op.REF, dest="p", refs=("x", )),
+            c(op=Op.ADD, dest="y", refs=("y", "one")),
+            c(op=Op.REF, dest="q", refs=("y", )),
         ]
-        block = Block('test', instructions)
+        block = Block('test', instructions, terminator=c(op=Op.RET))
         loans = block.borrow_check({}, set())
         print(loans)
 

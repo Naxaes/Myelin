@@ -40,6 +40,7 @@ write: (fd: int, buffer: ptr, count: int) -> int {
 open: (path: str, flags: int) -> int {
     status: int = @syscall(SYS_OPEN, path, flags, 292)
     @asm("mov rax, rdx\nmov rdi, 0\ncmovc rax, rdi\nret\n")
+    return 0  # This line is never reached, but it helps the compiler understand the function's return type.
 }
 
 close: (fd: int) -> int {

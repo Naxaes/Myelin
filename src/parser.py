@@ -1,8 +1,10 @@
 from typing import Union, Dict
 
+from ir.ir import Op
 from lexer import Lexer, Token, TokenStream
 from ir.basic_block import Block, Code
 from ir.function import Function
+
 
 
 class Builtin:
@@ -163,7 +165,7 @@ class Parser(TokenStream):
         self.new_function(name, is_module=True)
         while self.has_more():
             self.parse_stmt()
-        self.block.terminator = Code('ret')
+        self.block.terminator = Code(Op.RET)
         return self.functions, self.data, self.constants, self.types
 
     @staticmethod
@@ -172,7 +174,7 @@ class Parser(TokenStream):
         self.new_function(name, is_module=True, is_main=True)
         while self.has_more():
             self.parse_stmt()
-        self.block.terminator = Code('ret')
+        self.block.terminator = Code(Op.RET)
         return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
 
     # TODO: Separate declaration and statements, since a declaration is only allowed
@@ -251,7 +253,7 @@ class Parser(TokenStream):
             if self.next_if('='):
                 expr = self.parse_expr()
                 for i, name in enumerate(names):
-                    id = self.push(Code('decl', args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
+                    id = self.push(Code(Op.DECL, args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
                     # self.block.declarations[name.data.decode()] = id
             else:
                 if hasattr(type, '__iter__'):
@@ -263,9 +265,9 @@ class Parser(TokenStream):
         elif self.next_if(':='):
             expr = self.parse_expr()
             if len(names) == 1:
-                id = self.push(Code('decl', dest=names[0].data.decode(), refs=(expr, ) if expr is not None else ()))
+                id = self.push(Code(Op.DECL, dest=names[0].data.decode(), refs=(expr, ) if expr is not None else ()))
             else:
-                id = self.push(Code('multidecl', dest=self.implicit_name(), refs=(expr, ) if expr is not None else (), args=tuple(n.data.decode() for n in names)))
+                id = self.push(Code(Op.MULTIDECL, dest=self.implicit_name(), refs=(expr, ) if expr is not None else (), args=tuple(n.data.decode() for n in names)))
                 # self.block.declarations[name.data.decode()] = id
         else:
             raise RuntimeError(f'Unknown token {self.peek()}')
@@ -273,7 +275,7 @@ class Parser(TokenStream):
     def parse_assign(self, target):
         _ = self.next(expect='=')
         expr = self.parse_expr()
-        return self.push(Code('assign', refs=(target, expr)))
+        return self.push(Code(Op.ASSIGN, refs=(target, expr)))
 
     def parse_if(self):
         _ = self.next(expect='if')
@@ -293,19 +295,19 @@ class Parser(TokenStream):
 
         end, end_offset = self.new_block('end')
 
-        prev.terminator = Code('br', args=(then_offset, elze_offset if elze else end_offset), refs=(cond, ))
+        prev.terminator = Code(Op.BR, args=(then_offset, elze_offset if elze else end_offset), refs=(cond, ))
 
         if then.terminator is None:
-            then.terminator = Code('jmp', args=(end_offset,))
+            then.terminator = Code(Op.JMP, args=(end_offset,))
         if elze and elze.terminator is None:
-            elze.terminator = Code('jmp', args=(elze_offset + 1,))
+            elze.terminator = Code(Op.JMP, args=(elze_offset + 1,))
 
     def parse_while(self):
         _ = self.next(expect='while')
 
         prev = self.block
         whyle, whyle_offset = self.new_block('while')
-        prev.terminator = Code('jmp', args=(whyle_offset,))
+        prev.terminator = Code(Op.JMP, args=(whyle_offset,))
 
         self.in_expression_followed_by_block = True
         cond = self.parse_expr()
@@ -316,10 +318,10 @@ class Parser(TokenStream):
         then, then_offset = self.new_block('then')
         body = self.parse_block()
 
-        then.terminator = Code('jmp', args=(whyle_offset,))
+        then.terminator = Code(Op.JMP, args=(whyle_offset,))
         end, end_offset = self.new_block('end')
 
-        prev.terminator = Code('br', args=(then_offset, end_offset), refs=(cond, ))
+        prev.terminator = Code(Op.BR, args=(then_offset, end_offset), refs=(cond, ))
 
     def parse_return(self):
         _ = self.next(expect='return')
@@ -329,7 +331,7 @@ class Parser(TokenStream):
             args.append(arg)
             if not self.next_if(expect=','):
                 break
-        self.block.terminator = Code('ret', refs=tuple(args))
+        self.block.terminator = Code(Op.RET, refs=tuple(args))
 
     def parse_block(self):
         _ = self.next(expect='{')
@@ -374,7 +376,7 @@ class Parser(TokenStream):
             self.next(expect=':')
             type = self.next(expect='ident').data.decode()
             self.next_if(expect=',')
-            params[field] = (type, self.push(Code('param', args=(type, ), dest=field)), i)
+            params[field] = (type, self.push(Code(Op.PARAM, args=(type, ), dest=field)), i)
             i += 1
 
         returns = []
@@ -392,7 +394,7 @@ class Parser(TokenStream):
         self.parse_block()
 
         if self.block.terminator is None:
-            self.block.terminator = Code('leave')
+            self.block.terminator = Code(Op.RET)
         self.function = previous
         return 'func'
 
@@ -407,7 +409,7 @@ class Parser(TokenStream):
             args.append(arg)
             self.next_if(',')
 
-        call = self.push(Code('call', dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
+        call = self.push(Code(Op.CALL, dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
         return call
 
     def parse_struct(self, name: str):
@@ -437,11 +439,11 @@ class Parser(TokenStream):
             self.next(expect='=')
             field_arg = self.parse_expr()
             self.next_if(expect=',')
-            add = self.push(Code('field', dest=self.implicit_name(), refs=(field_arg,), args=(None, field_name, i)))
+            add = self.push(Code(Op.FIELD, dest=self.implicit_name(), refs=(field_arg,), args=(None, field_name, i)))
             args.append(add)
             i += 1
 
-        stuff = self.push(Code('init', args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args)))
+        stuff = self.push(Code(Op.INIT, args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args)))
         return stuff
 
     def parse_compiler_attribute(self):
@@ -456,12 +458,12 @@ class Parser(TokenStream):
                 args.append(arg)
                 self.next_if(',')
 
-            return self.push(Code('syscall', dest=self.implicit_name(), refs=tuple(args)))
+            return self.push(Code(Op.SYSCALL, dest=self.implicit_name(), refs=tuple(args)))
         elif attribute.data.decode() == 'asm':
             self.next(expect='(')
             data = self.parse_string()
             self.next(expect=')')
-            return self.push(Code('asm', dest=self.implicit_name(), refs=(data, )))
+            return self.push(Code(Op.ASM, dest=self.implicit_name(), refs=(data, )))
         else:
             assert False, "Not implemented"
 
@@ -469,7 +471,7 @@ class Parser(TokenStream):
         _ = self.next(expect='[')
         expr = self.parse_expr()
         _ = self.next(expect=']')
-        return self.push(Code('index', dest=self.implicit_name(), refs=(target, expr), args=(is_lvl, )))
+        return self.push(Code(Op.INDEX, dest=self.implicit_name(), refs=(target, expr), args=(is_lvl, )))
 
     def parse_expr(self, precedence=0):
         left = self.parse_prefix()
@@ -491,7 +493,21 @@ class Parser(TokenStream):
         if op := self.next_if_any(*Parser.UNARY_OPERATOR):
             prec = self.precedence_of(op) + 1
             expr = self.parse_expr(prec)
-            return self.push(Code(op.kind, dest=self.implicit_name(), refs=(expr,)))
+            match op.kind:
+                case '+':
+                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(expr,)))
+                case '-':
+                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(expr,)))
+                case '*':
+                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(expr,)))
+                case '.':
+                    return self.push(Code(Op.DOT, dest=self.implicit_name(), refs=(expr,)))
+                case '&':
+                    return self.push(Code(Op.REF, dest=self.implicit_name(), refs=(expr,)))
+                case 'not':
+                    return self.push(Code(Op.NOT, dest=self.implicit_name(), refs=(expr,)))
+                case _:
+                    raise RuntimeError(f'Unknown unary operator {op.kind}')
         elif self.peek_if('number'):
             return self.parse_number()
         elif self.peek_if('real'):
@@ -528,7 +544,33 @@ class Parser(TokenStream):
         if op := self.next_if_any(*Parser.BINARY_OPERATOR):
             prec = self.precedence_of(op) + 1
             right = self.parse_expr(prec)
-            return self.push(Code(op.kind, dest=self.implicit_name(), refs=(left, right)))
+            match op.kind:
+                case '+':
+                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(left, right)))
+                case '-':
+                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(left, right)))
+                case '*':
+                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(left, right)))
+                case '/':
+                    return self.push(Code(Op.DIV, dest=self.implicit_name(), refs=(left, right)))
+                case '%':
+                    return self.push(Code(Op.MOD, dest=self.implicit_name(), refs=(left, right)))
+                case '==':
+                    return self.push(Code(Op.EQ, dest=self.implicit_name(), refs=(left, right)))
+                case '!=':
+                    return self.push(Code(Op.NEQ, dest=self.implicit_name(), refs=(left, right)))
+                case '<':
+                    return self.push(Code(Op.LT, dest=self.implicit_name(), refs=(left, right)))
+                case '>':
+                    return self.push(Code(Op.GT, dest=self.implicit_name(), refs=(left, right)))
+                case 'and':
+                    return self.push(Code(Op.AND, dest=self.implicit_name(), refs=(left, right)))
+                case 'or':
+                    return self.push(Code(Op.OR, dest=self.implicit_name(), refs=(left, right)))
+                case '.':
+                    return self.push(Code(Op.ACCESS, dest=self.implicit_name(), refs=(left, right)))
+                case _:
+                    raise RuntimeError(f'Unknown binary operator {op.kind}')
         elif op := self.peek_if('['):
             return self.parse_indexing(left)
         elif op := self.peek_if('as'):
@@ -539,34 +581,34 @@ class Parser(TokenStream):
     def parse_cast(self, left):
         _ = self.next(expect='as')
         t = self.next(expect='ident').data.decode()
-        return self.push(Code('as', args=(t, ), dest=self.implicit_name(), refs=(left,)))
+        return self.push(Code(Op.AS, args=(t, ), dest=self.implicit_name(), refs=(left,)))
 
     def parse_number(self):
         token = self.next(expect='number')
         value = token.data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('int', index, value), token=token))
+        return self.push(Code(Op.LIT, self.implicit_name(), args=('int', index, value), token=token))
 
     def parse_real(self):
         token = self.next(expect='real')
         value = token.data
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('real', index, value), token=token))
+        return self.push(Code(Op.LIT, self.implicit_name(), args=('real', index, value), token=token))
 
     def parse_string(self):
         token = self.next(expect='string')
         value = token.data.decode()
         index = len(self.data)
         self.data[index] = value
-        return self.push(Code('lit', self.implicit_name(), args=('str', index, value), token=token))
+        return self.push(Code(Op.LIT, self.implicit_name(), args=('str', index, value), token=token))
 
     def parse_none(self):
         token = self.next(expect='none')
         index = len(self.data)
         self.data[index] = token
-        return self.push(Code('lit', self.implicit_name(), args=('none', 0, 0), token=token))
+        return self.push(Code(Op.LIT, self.implicit_name(), args=('none', 0, 0), token=token))
 
     def parse_ident(self):
         """Name referring to an existing value"""

@@ -1,3 +1,4 @@
+from ir.ir import Op
 from type import LiteralType, Type, StructType
 
 
@@ -53,53 +54,50 @@ class X86_64_Generator:
                 self.mapping = self.vars.copy()
                 self.code += f'.{block.label}_{block_offset}:\n'
                 for code in block.instructions:
-                    if code.op == 'lit':
+                    if code.op == Op.LIT:
                         self.generate_lit(function, block, code)
-                    elif code.op in ('+', '-', '*', '/', '%', '==', '!=', '<', 'and', 'or'):
+                    elif code.op in (Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD, Op.EQ, Op.NEQ, Op.LT, Op.AND, Op.OR):
                         self.generate_bin(function, block, code)
-                    elif code.op == 'decl':
+                    elif code.op == Op.DECL:
                         self.generate_decl(function, block, code)
-                    elif code.op == 'multidecl':
+                    elif code.op == Op.MULTIDECL:
                         self.generate_multidecl(function, block, code)
-                    elif code.op == 'assign':
+                    elif code.op == Op.ASSIGN:
                         self.generate_assign(function, block, code)
-                    elif code.op == 'label':
+                    elif code.op == Op.LABEL:
                         self.code += f'.{code.args[0]}:\n'
-                    elif code.op == 'call':
+                    elif code.op == Op.CALL:
                         self.generate_call(function, block, code)
-                    elif code.op == 'param':
+                    elif code.op == Op.PARAM:
                         self.generate_param(code)
-                    elif code.op == '_':
+                    elif code.op == Op._:
                         # Pseudo-target
                         pass
-                    elif code.op == 'field':
+                    elif code.op == Op.FIELD:
                         self.generate_field(function, block, code)
-                    elif code.op == 'init':
+                    elif code.op == Op.INIT:
                         self.generate_init(function, block, code)
-                    elif code.op == 'syscall':
+                    elif code.op == Op.SYSCALL:
                         self.generate_syscall(function, block, code)
-                    elif code.op == 'asm':
+                    elif code.op == Op.ASM:
                         self.generate_asm(function, block, code)
-                    elif code.op == 'index':
+                    elif code.op == Op.INDEX:
                         self.generate_index(function, block, code)
-                    elif code.op == '&':
+                    elif code.op == Op.REF:
                         self.generate_dereference(function, block, code)
-                    elif code.op == 'as':
+                    elif code.op == Op.AS:
                         pass
-                    elif code.op == '.':
+                    elif code.op == Op.ACCESS:
                         self.generate_get(function, block, code)
                     else:
                         assert False, f'Unknown instruction {code}'
 
                 code = block.terminator
-                if code.op == 'br':
+                if code.op == Op.BR:
                     self.generate_ite(function, block, code)
-                elif code.op == 'jmp':
+                elif code.op == Op.JMP:
                     self.generate_jmp(function, code, block_offset)
-                elif code.op == 'ret':
-                    self.generate_ret(function, block, code)
-                elif code.op == 'leave':
-                    self.code += '\t; Implicit return\n'
+                elif code.op == Op.RET:
                     self.generate_ret(function, block, code)
                 else:
                     assert False, f"Unknown terminator {code}"
@@ -182,7 +180,7 @@ class X86_64_Generator:
         self.code += '\n'
 
     def prepare_function_call(self, function, block, code):
-        assert code.op == 'call' or code.op == 'syscall'
+        assert code.op == Op.CALL or code.op == Op.SYSCALL
 
         pushed = []
         for i, r in enumerate(self.regs):
@@ -336,7 +334,7 @@ class X86_64_Generator:
         dst  = self.consume_reg(target)
         src  = self.consume_reg(expr)
         self.code += f'\t; {target} = {expr}\n\n'
-        if type(name_a) != str and block.instructions[name_a].op == 'index':
+        if type(name_a) != str and block.instructions[name_a].op == Op.INDEX:
             size = self.types[function.name][target].size
             self.add_code('mov', f'[{dst}]', register_to_size(src, size))
         elif dst != src:
@@ -373,16 +371,16 @@ class X86_64_Generator:
         reg = self.set_reg(code.dest)
         b = self.consume_reg(name_b)
 
-        if code.op == '+':
+        if code.op == Op.ADD:
             if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
             self.add_code('add',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
-        elif code.op == '-':
+        elif code.op == Op.SUB:
             if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
             self.add_code('sub', reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
-        elif code.op == '*':
+        elif code.op == Op.MUL:
             if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
             self.add_code('imul', reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
-        elif code.op == '/':
+        elif code.op == Op.DIV:
             self.add_code('push', 'rax')
             self.add_code('push', 'rdx')
             self.add_code('cqo')
@@ -391,7 +389,7 @@ class X86_64_Generator:
             self.add_code('mov', reg, 'rax')
             self.add_code('pop', 'rdx')
             self.add_code('pop', 'rax')
-        elif code.op == '%':
+        elif code.op == Op.MOD:
             self.add_code('push', 'rax')
             self.add_code('push', 'rdx')
             self.add_code('cqo')
@@ -400,7 +398,7 @@ class X86_64_Generator:
             self.add_code('mov', reg, 'rdx')
             self.add_code('pop', 'rdx')
             self.add_code('pop', 'rax')
-        elif code.op in ('==', '!=', '<'):
+        elif code.op in (Op.EQ, Op.NEQ, Op.LT):
             t = self.set_reg('__temp__')
             self.code += f'\t; {code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}\n'
             self.add_code('cmp',  f'{a}', f'{b}')
@@ -408,15 +406,15 @@ class X86_64_Generator:
             self.add_code('mov',  f'{t}',   '1')
             self.consume_reg('__temp__')
             # https://www.felixcloutier.com/x86/cmovcc
-            if   code.op == '==':  self.add_code('cmove',  f'{reg}', f'{t}')
-            elif code.op == '!=':  self.add_code('cmovnz', f'{reg}', f'{t}')
-            elif code.op == '<':   self.add_code('cmovl',  f'{reg}', f'{t}')
+            if   code.op == Op.EQ:  self.add_code('cmove',  f'{reg}', f'{t}')
+            elif code.op == Op.NEQ:  self.add_code('cmovnz', f'{reg}', f'{t}')
+            elif code.op == Op.LT:   self.add_code('cmovl',  f'{reg}', f'{t}')
             else:
                 assert False
-        elif code.op in ('and', 'or'):
+        elif code.op in (Op.AND, Op.OR):
             if reg != a: self.add_code('mov', reg, a, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
-            if   code.op == 'or':  self.add_code('or',   reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
-            elif code.op == 'and': self.add_code('and',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            if   code.op == Op.OR:  self.add_code('or',   reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
+            elif code.op == Op.AND: self.add_code('and',  reg, b, comment=f'{code.dest} : {self.type_of(function, code)} = {name_a} {code.op} {name_b}')
             else: assert False
         else:
             assert False, f'Not implemented {code}'

@@ -2,7 +2,7 @@ from typing import Optional
 from collections import namedtuple
 from collections  import OrderedDict
 from ir.basic_block import Block
-from ir.ir import Code, TERMINATORS
+from ir.ir import TERMINATORS, Op
 
 KEYWORDS = {
     'jmp',
@@ -174,7 +174,7 @@ def parse(source: str, program_args: list[str]):
                 instrs.append({"op": op.repr, "type": ty, "dest": dest, "args": [arg_or_op.repr, arg2.repr]})
             elif arg_or_op.kind == 'number':
                 source, _ = parse_token(source, expect_kind='end')
-                instrs.append({"op": 'lit', "type": ty, "dest": dest, "args": [arg_or_op.repr]})
+                instrs.append({"op": Op.LIT, "type": ty, "dest": dest, "args": [arg_or_op.repr]})
             else:
                 raise RuntimeError(f'Expected kind ident, got {arg_or_op.kind} ({arg_or_op.repr})')
 
@@ -255,14 +255,14 @@ def map_to_basic_blocks(instructions: list[dict]) -> OrderedDict[str, Block]:
                 arguments = set()
                 label = f'block_{len(out)}'
         else:
-            assert 'label' in instruction
+            assert Op.LABEL in instruction
             if current:
                 out[label] = Block(label, arguments, current)
 
             current = []
             definitions = set()
             arguments = set()
-            label = instruction['label']
+            label = instruction[Op.LABEL]
 
             # If there is an empty label at the end of the program, still create the block.
             if i+1 == len(instructions):
@@ -278,19 +278,19 @@ def map_to_basic_blocks(instructions: list[dict]) -> OrderedDict[str, Block]:
 #     for i, (name, block) in enumerate(block_map.items()):
 #         last = block.terminator
 #
-#         if last['op'] == 'br':
+#         if last['op'] == Op.BR:
 #             left  = last['true']
 #             right = last['false']
 #             # block.successors = [block_map[left], block_map[right]]
 #             # block_map[left].predecessors.append(block)
 #             # block_map[right].predecessors.append(block)
 #
-#         elif last['op'] == 'jmp':
-#             label = last['label']
+#         elif last['op'] == Op.JMP:
+#             label = last[Op.LABEL]
 #             # block.successors = [block_map[label]]
 #             # block_map[label].predecessors.append(block)
 #
-#         elif last['op'] == 'ret':
+#         elif last['op'] == Op.RET:
 #             pass
 #             # block.successors = []
 #
@@ -314,19 +314,19 @@ def build_cfg(instructions: list[dict]) -> tuple[list[Block], dict[str, list[Blo
         if last is None:
             continue
 
-        elif last.op == 'br':
+        elif last.op == Op.BR:
             cond, left, right = last.args
 
             successors[block.label] = [block_map[left], block_map[right]]
             predecessors[left].append(block)
             predecessors[right].append(block)
 
-        elif last.op == 'jmp':
+        elif last.op == Op.JMP:
             label = last.label
             successors[block.label] = [block_map[label]]
             predecessors[label].append(block)
 
-        elif last.op == 'ret':
+        elif last.op == Op.RET:
             successors[block.label] = []
 
         elif i < len(block_map) - 1:

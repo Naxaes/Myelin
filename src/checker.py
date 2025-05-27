@@ -1,3 +1,4 @@
+from ir.ir import Op
 from type import *
 
 
@@ -91,14 +92,14 @@ class Checker:
         for function in self.functions.values():
             self.mapping = { }
             for block, code in function.code():
-                if code.op == 'lit':
+                if code.op == Op.LIT:
                     self.infer_lit(code)
-                elif code.op in ('+', '-', '*', '/', '%'):
+                elif code.op in (Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD):
                     a = self.type_of(block, code.lhs())
                     b = self.type_of(block, code.rhs())
                     t = self.type_check(a, b)
                     self.mapping[code.dest] = self.builtins[t.name]
-                elif code.op in ('and', 'or'):
+                elif code.op in (Op.AND, Op.OR):
                     a = self.type_of(block, code.lhs())
                     b = self.type_of(block, code.rhs())
                     if a.name == 'bool':
@@ -106,33 +107,33 @@ class Checker:
                         self.mapping[code.dest] = self.builtins['bool']
                     else:
                         raise RuntimeError(f'Type error between {a} and {b}')
-                elif code.op in ('==', '!=', '<'):
+                elif code.op in (Op.EQ, Op.NEQ, Op.LT):
                     a = self.type_of(block, code.lhs())
                     b = self.type_of(block, code.rhs())
                     self.type_check(a, b)
                     self.mapping[code.dest] = self.builtins['bool']
-                elif code.op == '.':
+                elif code.op == Op.ACCESS:
                     obj = self.type_of(block, code.obj())
                     attr = code.attr()
                     self.mapping[code.dest] = obj.get_attribute(attr)
-                elif code.op == 'decl':
+                elif code.op == Op.DECL:
                     if code.refs:
                         a = self.type_of(block, code.target())
                         t = self.lookup_type(code.type())
                         self.mapping[code.dest] = self.type_check(a, t)
                     else:
                         assert False, "Not implemented"
-                elif code.op == 'multidecl':
+                elif code.op == Op.MULTIDECL:
                     a = self.type_of(block, code.target())
                     for i, n in enumerate(code.args):
                         self.mapping[n] = a[i]
-                elif code.op == 'assign':
+                elif code.op == Op.ASSIGN:
                     a = self.type_of(block, code.target())
                     b = self.type_of(block, code.expr())
                     t = self.type_check(a, b)
-                elif code.op == 'label':
+                elif code.op == Op.LABEL:
                     pass
-                elif code.op == 'call':
+                elif code.op == Op.CALL:
                     f = self.functions[code.args[0]]
                     args = code.refs[:]
                     if len(f.params) != len(args):
@@ -148,15 +149,15 @@ class Checker:
                         self.mapping[code.dest] = self.lookup_type(ret)
                     else:
                         self.mapping[code.dest] = tuple(self.lookup_type(f.returns[i][1]) for i in range(len(f.returns)))
-                elif code.op == '_':
+                elif code.op == Op._:
                     f = code.args[0]
                     ret = f.returns[code.args[1]][1]
                     self.mapping[code.dest] = self.lookup_type(ret)
-                elif code.op == 'param':
+                elif code.op == Op.PARAM:
                     self.mapping[code.dest] = self.lookup_type(code.type())
-                elif code.op == 'field':
+                elif code.op == Op.FIELD:
                     self.mapping[code.dest] = self.lookup_type(code.type())
-                elif code.op == 'init':
+                elif code.op == Op.INIT:
                     thing = self.lookup_type(code.type())
                     assert len(thing.fields) == len(code.refs)
                     for (n, t), arg in zip(thing.fields.items(), code.refs):
@@ -164,38 +165,36 @@ class Checker:
                         b = t
                         t = self.type_check(a, b)
                     self.mapping[code.dest] = thing
-                elif code.op == 'syscall':
+                elif code.op == Op.SYSCALL:
                     self.mapping[code.dest] = self.builtins[None]
-                elif code.op == 'asm':
+                elif code.op == Op.ASM:
                     self.mapping[code.dest] = self.builtins[None]
-                elif code.op == 'index':
+                elif code.op == Op.INDEX:
                     target = self.type_of(block, code.target())
                     if target.name == 'str' or target.name == 'byte*':
                         self.mapping[code.dest] = self.builtins['byte']
                     else:
                         assert isinstance(target, PointerType), f"Cannot index a '{target}'"
                         self.mapping[code.dest] = target.pointee
-                elif code.op == '&':
+                elif code.op == Op.REF:
                     target = self.type_of(block, code.target())
                     self.mapping[code.dest] = PointerType(target)
-                elif code.op == 'as':
+                elif code.op == Op.AS:
                     obj = self.type_of(block, code.target())
                     to  = self.lookup_type(code.type())
                     assert obj.can_coerce_to(to)
                     self.mapping[block.instructions[code.target()].dest] = to
                     self.mapping[code.dest] = to
                     code.dest = block.instructions[code.target()].dest
-                elif code.op == 'br':
+                elif code.op == Op.BR:
                     pass
-                elif code.op == 'jmp':
+                elif code.op == Op.JMP:
                     pass
-                elif code.op == 'leave':
-                    pass
-                elif code.op == 'ret':
+                elif code.op == Op.RET:
                     if function.is_module:
                         continue
                     if len(function.returns) != len(code.refs):
-                        raise RuntimeError(f'Returning wrong amount of returns to {function.name}. Expected {len(function.returns)}, but got {len(code.refs)}')
+                        raise RuntimeError(f"Returning wrong amount of returns to '{function.name}'. Expected {len(function.returns)}, but got {len(code.refs)}")
                     for ret, arg in zip(function.returns, code.refs):
                         arg = self.type_of(block, arg)
                         self.type_check(self.lookup_type(ret[1]), arg)
@@ -205,7 +204,7 @@ class Checker:
         return self.types
 
     def infer_lit(self, code):
-        assert code.op == 'lit'
+        assert code.op == Op.LIT
         assert code.type() is not None, "All literals have a type"
         assert len(code.args) == 3, "Expected type, index and data"
 
