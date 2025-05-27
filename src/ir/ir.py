@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import Optional
 from enum import Enum, auto
+
 from lexer import Token
+
 
 class Op(Enum):
     NOP = auto()
@@ -28,6 +30,7 @@ class Op(Enum):
     ASSIGN = auto()
     GET = auto()
     LIT = auto()
+    BRW = auto()
     REF = auto()
     MOVE = auto()
     PARAM = auto()
@@ -94,10 +97,10 @@ def c(**kwargs):
         assert not kwargs
         return Code(op, dest=dest, refs=(a, b))
     if op == Op.LIT:
-        a, *_ = kwargs.pop('args'); assert not _
+        ty, idx, val, *_ = kwargs.pop('args'); assert not _
         dest = kwargs.pop('dest')
         assert not kwargs
-        return Code(op, dest=dest, args=(int(a),))
+        return Code(op, dest=dest, args=(ty, idx, int(val)))
     if op == Op.PRINT:
         refs = kwargs.pop('refs')
         assert not kwargs

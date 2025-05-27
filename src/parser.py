@@ -1,38 +1,10 @@
 from typing import Union, Dict
 
-from ir.ir import Op
 from lexer import Lexer, Token, TokenStream
+from ir.ir import Op
 from ir.basic_block import Block, Code
-from ir.function import Function
-
-
-
-class Builtin:
-    def __init__(self, name, returns, params):
-        self.name = name
-        self.returns = returns
-        self.params = params
-        self.blocks = []
-
-    def code(self):
-        return []
-
-    def __repr__(self):
-        parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
-        rets = ', '.join(ty for name, ty in self.returns)
-        return f'{self.name}: @builtin({parameters}) -> {rets or "void"}'
-
-
-class Module:
-    def __init__(self, name, functions, data, constants, types, imports):
-        self.name = name
-        self.functions = functions
-        # Static data needed in the executable
-        self.data = data
-        # Constants inlined in the code
-        self.constants = constants
-        self.types = types
-        self.imports = imports
+from ir.function import Function, Builtin
+from ir.module import Module
 
 
 class Parser(TokenStream):

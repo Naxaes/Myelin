@@ -1,5 +1,5 @@
 from ir.ir import Op
-from parser import Module
+from ir.module import Module
 
 
 

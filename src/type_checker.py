@@ -6,7 +6,7 @@ from type import *
 #   * Global type checking: https://www.youtube.com/watch?v=fDTt_uo0F-g&t=3343s&ab_channel=ChariotSolutions
 
 
-class Checker:
+class TypeChecker:
     def __init__(self, functions, data, constants, user_types):
         self.functions = functions
         self.data = data
@@ -19,8 +19,8 @@ class Checker:
             'real':     PrimitiveType(name='real', size=8),
             'bool':     PrimitiveType(name='bool', size=1),
             'str':      PointerType(PrimitiveType(name='byte',  size=1)),
-            'ptr':      PointerType(PrimitiveType('void', 8)),
-            'void*':    PointerType(PrimitiveType('void', 8)),
+            'ptr':      PointerType(PrimitiveType('void', 0)),
+            'void*':    PointerType(PrimitiveType('void', 0)),
             'byte*':    PointerType(PrimitiveType(name='byte',  size=1)),
         }
         self.user_types = user_types
@@ -83,7 +83,7 @@ class Checker:
         data = module.data
         constants = module.constants
         user_types = module.types
-        self = Checker(functions, data, constants, user_types)
+        self = TypeChecker(functions, data, constants, user_types)
         return self.check_()
 
     def check_(self):
@@ -179,6 +179,9 @@ class Checker:
                 elif code.op == Op.REF:
                     target = self.type_of(block, code.target())
                     self.mapping[code.dest] = PointerType(target)
+                elif code.op == Op.MOVE:
+                    target = self.type_of(block, code.target())
+                    self.mapping[code.dest] = target
                 elif code.op == Op.AS:
                     obj = self.type_of(block, code.target())
                     to  = self.lookup_type(code.type())
@@ -222,4 +225,36 @@ class Checker:
                 raise TypeError(f'Unknown type {code}')
 
 
+
+
+if __name__ == '__main__':
+    from ir.ir_parser import parse
+    import unittest
+
+    class TypeCheckerTest(unittest.TestCase):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.maxDiff = None
+
+        def test_types(self):
+            module = parse("""
+            @test_0()
+                $entry
+                    n := 32
+                    x := call alloc n
+                    y := move x
+                    _ := call print y
+                    ret
+            end
+            """)
+            function = module.functions['test_0']
+            types = TypeChecker.check(module)
+            self.assertEqual({
+                'n': PrimitiveType(name='int', size=8),
+                'x': PointerType(PrimitiveType(name='void', size=0)),
+                'y': PointerType(PrimitiveType(name='void', size=0)),
+                '_': PrimitiveType(name='int', size=8),
+            }, types[function.name])
+
+    unittest.main()
 

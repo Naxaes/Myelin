@@ -1,6 +1,6 @@
 from lexer import Lexer
 from parser import Parser
-from checker import Checker
+from type_checker import TypeChecker
 from x86_64_generator import X86_64_Generator
 from ir.passes import remove_unused_functions
 from assembler import make_macho_executable
@@ -15,7 +15,7 @@ def main():
     source = open(path).read()
     tokens = Lexer.lex(source)
     module = Parser.parse_module(tokens, path.name)
-    types  = Checker.check(module)
+    types  = TypeChecker.check(module)
 
     remove_unused_functions(module)
 

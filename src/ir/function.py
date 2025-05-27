@@ -1,13 +1,28 @@
 from typing import Callable, List, Any
 
+from ir.ir import Code, TERMINATORS, Op, ARITHMETICS
 from ir.basic_block import Block, Entry
-from ir.ir import Code, TERMINATORS, Op
-from ir.ir_parser import parse, build_cfg
 
 
 def lt(a, b): return (a[0], min(a[1], b[1] - 1)), (max(a[0] + 1, b[0]), b[1])
 def le(a, b): return (a[0], min(a[1], b[1])), (max(a[0], b[0]), b[1])
 def ge(a, b): return (max(a[0], b[0]), a[1]), (b[0], min(a[1], b[1]))
+
+
+class Builtin:
+    def __init__(self, name, returns, params):
+        self.name = name
+        self.returns = returns
+        self.params = params
+        self.blocks = []
+
+    def code(self):
+        return []
+
+    def __repr__(self):
+        parameters = ', '.join(f'{x}: {t[0]}' for x, t in self.params.items())
+        rets = ', '.join(ty for name, ty in self.returns)
+        return f'{self.name}: @builtin({parameters}) -> {rets or "void"}'
 
 
 class Function:
@@ -64,12 +79,6 @@ class Function:
                     assert False, f'Unknown terminator {last.op} in block {block.label}'
 
         return predecessors, successors
-
-    @staticmethod
-    def create(name: str, parameters: list[dict[str, str]], return_values: list[str], instructions: list[dict]):
-        blocks, predecessors, successors = build_cfg(instructions)
-        function = Function(name, parameters, return_values, blocks, predecessors, successors)
-        return function
 
     def code(self):
         for block in self.blocks:
@@ -256,29 +265,28 @@ class Function:
         def trans(b: Block, in_: set[Val]):
             result = in_.copy()
             for i in reversed(b.instructions):
-                if i.refs and i.dest:
+                if i.op in ARITHMETICS:
                     assert len(i.refs) == 2, 'Not implemented'
                     result = set(x for x in result if not any(y == i.dest for y in x))
                     result.add((i.op, i.refs[0], i.refs[1]))
-                elif i.args and i.dest:
-                    assert len(i.args) == 1, 'Not implemented'
+                elif i.op == Op.LIT:
+                    ty, idx, val = i.args
                     result = set(x for x in result if not any(y == i.dest for y in x))
-                    result.add((i.op, i.args[0], None))
+                    result.add((i.op, val, None))
                     pass
             return result
 
         all_expressions = set()
         for b in self.blocks:
             for i in b.instructions:
-                if i.refs and i.dest:
+                if i.op in ARITHMETICS:
                     refs = i.refs
                     assert len(refs) == 2, 'Not implemented'
                     value = (i.op, refs[0], refs[1])
                     all_expressions.add(value)
-                elif i.args and i.dest:
-                    args = i.args
-                    assert len(args) == 1, 'Not implemented'
-                    value = (i.op, args[0], None)
+                elif i.op == Op.LIT:
+                    ty, idx, val = i.args
+                    value = (i.op, val, None)
                     all_expressions.add(value)
 
         initial_state = all_expressions
@@ -322,11 +330,11 @@ class Function:
                     else:
                         result[key] = value
 
-                if pred.terminator and pred.terminator.op == Op.BR:
-                    last = pred.terminator
+                last = pred.terminator
+                if last.op == Op.BR:
                     cond, *_ = last.refs
                     left, right = last.args
-                    if left == block.label:
+                    if self.blocks[left].label == block.label:
                         # True branch
                         inst = next(x for x in pred.instructions if x.dest == cond)
                         if inst.op == Op.LT:
@@ -342,7 +350,7 @@ class Function:
                                 result[cond] = (True, True)
                         else:
                             assert False, f'Not implemented {inst.op}'
-                    elif right == block.label:
+                    elif self.blocks[right].label == block.label:
                         # False branch
                         inst = next(x for x in pred.instructions if x.dest == cond)
                         if inst.op == Op.LT:
@@ -366,8 +374,8 @@ class Function:
             for i in filter(lambda x: x.dest, block.instructions):
                 name = i.dest
                 if i.op == Op.LIT:
-                    arg = i.args[0]
-                    result[name] = int(arg), int(arg)
+                    ty, idx, val = i.args
+                    result[name] = int(val), int(val)
                 elif i.refs:
                     lhs = result[i.refs[0]]
                     rhs = result[i.refs[1]]
@@ -601,8 +609,8 @@ def check_all_variables_are_initialized_before_use(function: Function):
     )
 
 
+from ir.ir_parser import parse
 from ir.ir import c
-
 import unittest
 
 class TestFunction(unittest.TestCase):
@@ -612,49 +620,26 @@ class TestFunction(unittest.TestCase):
 
     def test_reaching_definitions(self):
         module = parse("""
-        @test_reaching_definitions(cond: bool)
-            $entry // 0
-                a := 47                 // 'a0' reaches through 'left' and to 'end'.
-                b := 42                 // 'b0' does not reach anywhere as this is its last use.
-                br cond $left $right    // 'cond' reaches here, and it's the last use.
-            $left // 1
-                b := 1                  // Assignment of 'b1' doesn't affect anything since there are no uses.
-                c := 5                  // 'c0' is defined here and reached 'end'.
+        @test(cond: bool)
+            $entry # 0
+                a := 47                 # 'a0' reaches through 'left' and to 'end'.
+                b := 42                 # 'b0' does not reach anywhere as this is its last use.
+                br cond $left $right    # 'cond' reaches here, and it's the last use.
+            $left # 1
+                b := 1                  # Assignment of 'b1' doesn't affect anything since there are no uses.
+                c := 5                  # 'c0' is defined here and reached 'end'.
                 jmp $end
-            $right // 2
-                a := 2                  // 'a0' is defined and reaches 'end'.
-                c := 10                 // 'c1' is defined here and reached 'end'.
+            $right # 2
+                a := 2                  # 'a0' is defined and reaches 'end'.
+                c := 10                 # 'c1' is defined here and reached 'end'.
                 jmp $end
-            $end // 3
-                d := a - c              // 'a0', 'a1' and 'c0', 'c1' reaches
-                print d                 // 'd' does not reach as it's defined in the block
+            $end # 3
+                d := a - c              # 'a0', 'a1' and 'c0', 'c1' reaches
+                print d                 # 'd' does not reach as it's defined in the block
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='a', args=(47, )),
-            c(op=Op.LIT, dest='b', args=(42, )),
-        ], terminator=c(op=Op.BR,  refs=('cond', ), args=('left', 'right')))
-        left = Block('left', [
-            c(op=Op.LIT, dest='b', args=(1,)),
-            c(op=Op.LIT, dest='c', args=(5,)),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.LIT, dest='a', args=(2, )),
-            c(op=Op.LIT, dest='c', args=(10, )),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.SUB, dest='d', refs=('a', 'c')),
-            c(op=Op.PRINT, refs=('d', )),
-        ], terminator=c(op=Op.RET))
-
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
-
+        """)
+        function = module.functions['test']
         live_in, live_out = function.reaching_definitions()
         self.assertDictEqual(live_in, {
             'entry': {('a', None), ('b', None), ('c', None), ('cond', '__init__'), ('d', None)},
@@ -671,16 +656,16 @@ class TestFunction(unittest.TestCase):
 
     def test_very_busy_expressions(self):
         module = parse("""
-        @test_very_busy_expressions(cond: bool)
-            $entry // 0
+        @test(cond: bool)
+            $entry # 0
                 a := 34
                 b := 35
                 br cond $left $right
-            $left // 1
-                x := b - a  // b - a is very busy since it's evaluated in all paths
-                y := a - b  // a - b is noy very busy since it's not evaluated equivalent in all paths
+            $left # 1
+                x := b - a  # b - a is very busy since it's evaluated in all paths
+                y := a - b  # a - b is noy very busy since it's not evaluated equivalent in all paths
                 jmp $end
-            $right // 2
+            $right # 2
                 y := b - a
                 a := 0
                 x := a - b
@@ -690,31 +675,8 @@ class TestFunction(unittest.TestCase):
                 print y
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='a', args=(34,)),
-            c(op=Op.LIT, dest='b', args=(35,)),
-        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
-        left = Block('left', [
-            c(op=Op.SUB, dest='x', refs=('b', 'a')),
-            c(op=Op.SUB, dest='y', refs=('a', 'b')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.SUB, dest='y', refs=('b', 'a')),
-            c(op=Op.LIT, dest='a', args=(0, )),
-            c(op=Op.SUB, dest='x', refs=('a', 'b')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.PRINT, refs=('x', )),
-            c(op=Op.PRINT, refs=('y',)),
-        ], terminator=c(op=Op.RET))
-
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         _, busy_out = function.very_busy_expressions()
         self.assertDictEqual(busy_out, {
             'entry': {(Op.SUB, 'b', 'a')},
@@ -725,17 +687,17 @@ class TestFunction(unittest.TestCase):
 
     def test_live_variables(self):
         module = parse("""
-        @test_live_variables()
-            $entry // 0
+        @test()
+            $entry # 0
                 x := 34
                 y := 35
                 cond := x > y
                 br cond $left $right
-            $left // 1
+            $left # 1
                 one := 1
                 z := x + one
                 jmp $end
-            $right // 2
+            $right # 2
                 z := x + x
                 jmp $end
             $end
@@ -744,31 +706,8 @@ class TestFunction(unittest.TestCase):
                 print x
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='x', args=(34,)),
-            c(op=Op.LIT, dest='y', args=(35,)),
-            c(op=Op.GT,  dest='cond', refs=('x', 'y')),
-        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
-        left = Block('left', [
-            c(op=Op.LIT, dest='one', args=(1, )),
-            c(op=Op.ADD, dest='z', refs=('x', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.ADD, dest='z', refs=('x', 'x')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.LIT, dest='zero', args=(0, )),
-            c(op=Op.ADD, dest='x', refs=('z', 'zero')),
-            c(op=Op.PRINT, refs=('x',)),
-        ], terminator=c(op=Op.RET))
-
-        function = Function(
-            'test', [], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         live_in, live_out = function.live_variables()
         self.assertDictEqual(live_in, {
             'entry': set(),
@@ -785,7 +724,7 @@ class TestFunction(unittest.TestCase):
 
     def test_interval_analysis(self):
         module = parse("""
-        @main()
+        @test()
             $entry
                 x := 0
                 y := 10
@@ -801,33 +740,14 @@ class TestFunction(unittest.TestCase):
                 print x
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='x', args=(0, )),
-            c(op=Op.LIT, dest='y', args=(10,)),
-        ], terminator=c(op=Op.JMP, args=('header', )))
-        header = Block('header', [
-            c(op=Op.LT, dest='cond', refs=('x', 'y')),
-        ], terminator=c(op=Op.BR, args=('body', 'end'), refs=('cond', )))
-        body = Block('body', [
-            c(op=Op.LIT, dest='one', args=(1, )),
-            c(op=Op.ADD, dest='x', refs=('x', 'one')),
-        ], terminator=c(op=Op.JMP, args=('header',)))
-        end = Block('end', [
-            c(op=Op.PRINT, refs=('x',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [], [],
-            [entry, header, body, end],
-            {'entry': [], 'header': [entry, body], 'body': [header], 'end': [header]},
-            {'entry': [header], 'header': [body, end], 'body': [header], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         live_in, live_out = function.interval_analysis()
         self.assertDictEqual(live_in, {
             # No variables are entering 'entry'
             'entry': {},
             # 'cond' can only be true when entering 'header' (but might be set to false)
-              'header': {'x': (0, 10), 'y': (10, 10), 'cond': (True, True), 'one': (1, 1)},
+            'header': {'x': (0, 10), 'y': (10, 10), 'cond': (True, True), 'one': (1, 1)},
             # 'x' can only [0, 9] when 'cond' is true
             'body': {'x': (0, 9), 'y': (10, 10), 'cond': (True, True), 'one': (1, 1)},
             # 'x' can only be 10 when 'cond' is false
@@ -863,9 +783,8 @@ class TestFunction(unittest.TestCase):
                 print y
                 ret
         end
-        """, [])
-        f = module['functions'][0]
-        function = Function.create(f['name'], f['args'], f['rets'], f['instrs'])
+        """)
+        function = module.functions['test']
         live_in, live_out = function.interval_analysis()
         print(str(live_in).replace("'", '"').replace(')', ']').replace('(', '['))
         print(str(live_out).replace("'", '"').replace(')', ']').replace('(', '['))
@@ -890,7 +809,7 @@ class TestFunction(unittest.TestCase):
 
     def test_dominators(self):
         module = parse("""
-        @test_dominators(cond: bool)
+        @test(cond: bool)
             $0
                 jmp $1
             $1
@@ -908,99 +827,45 @@ class TestFunction(unittest.TestCase):
             $7
                 ret cond
         end
-        """, [])
-        b0 = Block('b0', [], terminator=c(op=Op.JMP, args=('b1',)))
-        b1 = Block('b1', [], terminator=c(op=Op.BR,  args=('b2', 'b4'), refs=('cond', )))
-        b2 = Block('b2', [], terminator=c(op=Op.JMP, args=('b3',)))
-        b3 = Block('b3', [], terminator=c(op=Op.BR,  args=('b1', 'b5'), refs=('cond', )))
-        b4 = Block('b4', [], terminator=c(op=Op.JMP, args=('b5',)))
-        b5 = Block('b5', [], terminator=c(op=Op.JMP, args=('b6',)))
-        b6 = Block('b6', [], terminator=c(op=Op.BR,  args=('b5', 'b7'), refs=('cond', )))
-        b7 = Block('b7', [], terminator=c(op=Op.RET, refs=('cond', )))
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [b0, b1, b2, b3, b4, b5, b6, b7],
-            {
-                'b0': [],
-                'b1': [b0, b3],
-                'b2': [b1],
-                'b3': [b2],
-                'b4': [b1],
-                'b5': [b3, b4, b6],
-                'b6': [b5],
-                'b7': [b6],
-            },
-            {
-                'b0': [b1],
-                'b1': [b2, b4],
-                'b2': [b3],
-                'b3': [b1, b5],
-                'b4': [b5],
-                'b5': [b6],
-                'b6': [b5, b7],
-                'b7': [],
-            },
-        )
+        """)
+        function = module.functions['test']
         dom = function.dominators()
         print(dom)
         self.assertDictEqual(dom, {
-            "b0": {"b0"},
-            "b1": {"b0", "b1"},
-            "b2": {"b0", "b1", "b2"},
-            "b3": {"b0", "b1", "b2", "b3"},
-            "b4": {"b0", "b1", "b4"},
-            "b5": {"b0", "b1", "b5"},
-            "b6": {"b0", "b1", "b5", "b6"},
-            "b7": {"b0", "b1", "b5", "b6", "b7"},
+            0: {0},
+            1: {0, 1},
+            2: {0, 1, 2},
+            3: {0, 1, 2, 3},
+            4: {0, 1, 4},
+            5: {0, 1, 5},
+            6: {0, 1, 5, 6},
+            7: {0, 1, 5, 6, 7},
         })
 
     def test_borrowing_ok(self):
         module = parse("""
-        @test_borrowing_ok(cond: bool)
+        @test(cond: bool)
             $entry
                 one := 1
                 x := 22
                 y := 44
-                p := ref x              // Loan L0, borrowing 'x'
-                y := y + one            // (A) Mutate 'y' - Ok, no mutation of path L0
-                q := ref y              // Loan L1, borrowing 'y'
+                p := ref x              # Loan L0, borrowing 'x'
+                y := y + one            # (A) Mutate 'y' - Ok, no mutation of path L0
+                q := ref y              # Loan L1, borrowing 'y'
                 br cond $left $right
-            $left                       // Loans = { L0, L1 }
-                p := move q             // 'p' takes L1 - Kill of L0
-                x := x + one            // (B) Mutate 'x' - Ok, no mutation of path L0
+            $left                       # Loans = { L0, L1 }
+                p := move q             # 'p' takes L1 - Kill of L0
+                x := x + one            # (B) Mutate 'x' - Ok, no mutation of path L0
                 jmp $end
-            $right                      // Loans = { L1 }
-                y := y + one            // (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
+            $right                      # Loans = { L1 }
+                y := y + one            # (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
                 jmp $end
-            $end                        // Loans = { L1 }
-                print p                 // Use of 'p' - Ok use of L1
+            $end                        # Loans = { L1 }
+                print p                 # Use of 'p' - Ok use of L1
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='one', args=(1,)),
-            c(op=Op.LIT, dest='x', args=(22,)),
-            c(op=Op.LIT, dest='y', args=(44,)),
-            c(op=Op.REF, dest='p', refs=('x', )),
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-            c(op=Op.REF, dest='q', refs=('y', )),
-        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond', )))
-        left = Block('left', [
-            c(op=Op.MOVE, dest='p', refs=('q', )),
-            c(op=Op.ADD, dest='x', refs=('x', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.PRINT, refs=('p',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         live_in, live_out = function.live_variables()
         print(live_in)
         print(live_out)
@@ -1011,53 +876,29 @@ class TestFunction(unittest.TestCase):
 
     def test_borrowing_error(self):
         module = parse("""
-        @test_borrowing_error(cond: bool)
+        @test(cond: bool)
             $entry
                 one := 1
                 x := 22
                 y := 44
-                p := ref x              // Loan L0, borrowing 'x'
-                y := y + one            // (A) Mutate 'y' - Ok, no mutation of path L0
-                q := ref y              // Loan L1, borrowing 'y'
+                p := ref x              # Loan L0, borrowing 'x'
+                y := y + one            # (A) Mutate 'y' - Ok, no mutation of path L0
+                q := ref y              # Loan L1, borrowing 'y'
                 br cond $left $right
             $left
-                p := move q             // 'p' takes L1 - Kill of L0
-                x := x + one            // (B) Mutate 'x' - Ok, no mutation of path L0
+                p := move q             # 'p' takes L1 - Kill of L0
+                x := x + one            # (B) Mutate 'x' - Ok, no mutation of path L0
                 jmp $end
             $right
-                y := y + one            // (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
+                y := y + one            # (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
                 jmp $end
             $end
-                y := y + one            // (D) Mutate 'y' - Error, mutating path of L1 if entering '$left'
-                print p                 // Use of 'p' - Ok use of L1
+                y := y + one            # (D) Mutate 'y' - Error, mutating path of L1 if entering '$left'
+                print p                 # Use of 'p' - Ok use of L1
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='one', args=(1,)),
-            c(op=Op.LIT, dest='x', args=(22,)),
-            c(op=Op.LIT, dest='y', args=(44,)),
-            c(op=Op.REF, dest='p', refs=('x',)),
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-            c(op=Op.REF, dest='q', refs=('y',)),
-        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond',)))
-        left = Block('left', [
-            c(op=Op.MOVE, dest='p', refs=('q',)),
-            c(op=Op.ADD, dest='x', refs=('x', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-            c(op=Op.PRINT, refs=('p',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         live_in, live_out = function.live_variables()
         print(live_in)
         print(live_out)
@@ -1066,55 +907,30 @@ class TestFunction(unittest.TestCase):
 
     def test_multiple_borrowing_error(self):
         module = parse("""
-        @test_multiple_borrowing_error(cond: bool)
+        @test(cond: bool)
             $entry
                 one := 1
                 x := 22
                 y := 44
-                p := ref x              // Loan L0, borrowing 'x'
-                y := y + one            // (A) Mutate 'y' - Ok, no mutation of path L0
-                q := ref y              // Loan L1, borrowing 'y'
-                r := ref y              // Loan L1, borrowing 'y'
+                p := ref x              # Loan L0, borrowing 'x'
+                y := y + one            # (A) Mutate 'y' - Ok, no mutation of path L0
+                q := ref y              # Loan L1, borrowing 'y'
+                r := ref y              # Loan L1, borrowing 'y'
                 br cond $left $right
             $left
-                p := move q         // 'p' takes L1 - Kill of L0
-                x := x + one        // (B) Mutate 'x' - Ok, no mutation of path L0
+                p := move q         # 'p' takes L1 - Kill of L0
+                x := x + one        # (B) Mutate 'x' - Ok, no mutation of path L0
                 jmp $end
             $right
-                y := y + one        // (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
+                y := y + one        # (C) Mutate 'y' - Ok, no loan is active since there are no further uses of a loan from 'y'
                 jmp $end
             $end
-                y := y + one        // (D) Mutate 'y' - Error, mutating path of L1 if entering '$true'
-                print r             // Use of 'p' - Ok use of L1
+                y := y + one        # (D) Mutate 'y' - Error, mutating path of L1 if entering '$true'
+                print r             # Use of 'p' - Ok use of L1
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='one', args=(1,)),
-            c(op=Op.LIT, dest='x', args=(22,)),
-            c(op=Op.LIT, dest='y', args=(44,)),
-            c(op=Op.REF, dest='p', refs=('x',)),
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-            c(op=Op.REF, dest='q', refs=('y',)),
-            c(op=Op.REF, dest='r', refs=('y',)),
-        ], terminator=c(op=Op.BR, args=('left', 'right'), refs=('cond',)))
-        left = Block('left', [
-            c(op=Op.MOVE, dest='p', refs=('q',)),
-            c(op=Op.ADD, dest='x', refs=('x', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        right = Block('right', [
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-        ], terminator=c(op=Op.JMP, args=('end',)))
-        end = Block('end', [
-            c(op=Op.ADD, dest='y', refs=('y', 'one')),
-            c(op=Op.PRINT, refs=('r',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [entry, left, right, end],
-            {'entry': [], 'left': [entry], 'right': [entry], 'end': [left, right]},
-            {'entry': [left, right], 'left': [end], 'right': [end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         live_in, live_out = function.live_variables()
         print(live_in)
         print(live_out)
@@ -1143,32 +959,8 @@ class TestFunction(unittest.TestCase):
                 print y
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='c', args=(32,)),
-            c(op=Op.ALLOC, dest='a', refs=('c',)),
-            c(op=Op.LIT, dest='i', args=(0,)),
-            c(op=Op.LIT, dest='one', args=(1,)),
-        ], terminator=c(op=Op.JMP, args=('loop',)))
-        loop = Block('loop', [
-            c(op=Op.LIT, dest='two', args=(2,)),
-            c(op=Op.MUL, dest='val', refs=('i', 'two')),
-            c(op=Op.SET, refs=('a', 'i', 'val')),
-            c(op=Op.ADD, dest='i', refs=('i', 'one')),
-            c(op=Op.LT, dest='cond', refs=('i', 'c')),
-        ], terminator=c(op=Op.BR, args=('loop', 'end'), refs=('cond',)))
-        end = Block('end', [
-            c(op=Op.LIT, dest='x', args=(30, )),
-            c(op=Op.GET, dest='y', refs=('a', 'x')),
-            c(op=Op.PRINT, refs=('a',)),
-            c(op=Op.PRINT, refs=('y',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [{'name': 'cond', 'type': 'bool'}], [],
-            [entry, loop, end],
-            {'entry': [], 'loop': [entry, loop], 'end': [loop]},
-            {'entry': [loop], 'loop': [loop, end], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         function.automatically_drop()
         assert function.blocks[-1].instructions[-1].op == Op.FREE, "Last instruction should be a free operation, but got {}".format(function.blocks[-1].instructions[-2])
 
@@ -1189,9 +981,8 @@ class TestFunction(unittest.TestCase):
             $end
                 print count
         end
-        """, [])
-        f = module['functions'][0]
-        function = Function.create(f['name'], f['args'], f['rets'], f['instrs'])
+        """)
+        function = module.functions['test']
         function.automatically_drop()
         print(function.block_at('true').instructions)
         assert function.block_at('true').instructions[-2]['op'] == Op.FREE
@@ -1199,7 +990,7 @@ class TestFunction(unittest.TestCase):
 
     def test_static_slice(self):
         module = parse("""
-        @main(n: int)
+        @test(n: int)
             $entry
                 sum := 0
                 product := 1
@@ -1219,39 +1010,16 @@ class TestFunction(unittest.TestCase):
                 print product
                 ret
         end
-        """, [])
-        entry = Block('entry', [
-            c(op=Op.LIT, dest='sum', args=(0,)),
-            c(op=Op.LIT, dest='product', args=(1,)),
-            c(op=Op.LIT, dest='w', args=(7,)),
-        ], terminator=c(op=Op.JMP, args=('header',)))
-        header = Block('header', [
-            c(op=Op.LIT, dest='i', args=(1,)),
-            c(op=Op.LT, dest='cond', refs=('i', 'n')),
-        ], terminator=c(op=Op.BR, args=('body', 'end'), refs=('cond',)))
-        body = Block('body', [
-            c(op=Op.ADD, dest='temp', refs=('i', 'w')),
-            c(op=Op.ADD, dest='sum', refs=('sum', 'temp')),
-            c(op=Op.MUL, dest='product', refs=('product', 'i')),
-        ], terminator=c(op=Op.JMP, args=('header',)))
-        end = Block('end', [
-            c(op=Op.PRINT, refs=('sum',)),
-            c(op=Op.PRINT, refs=('product',)),
-        ], terminator=c(op=Op.RET))
-        function = Function(
-            'test', [], [],
-            [entry, header, body, end],
-            {'entry': [], 'header': [entry, body], 'body': [header], 'end': [header]},
-            {'entry': [header], 'header': [body, end], 'body': [header], 'end': []},
-        )
+        """)
+        function = module.functions['test']
         slice = function.static_slice('sum')
         self.assertDictEqual(slice, {
             'entry': [
-                c(op=Op.LIT, dest='sum', args=(0,)),
-                c(op=Op.LIT, dest='w', args=(7,)),
+                c(op=Op.LIT, dest='sum', args=('int', 0, 0)),
+                c(op=Op.LIT, dest='w',   args=('int', 2, 7)),
             ],
             'header': [
-                c(op=Op.LIT, dest='i', args=(1,)),
+                c(op=Op.LIT, dest='i', args=('int', 3, 1)),
                 c(op=Op.LT, dest='cond', refs=('i', 'n')),
             ],
             'body': [
@@ -1268,39 +1036,39 @@ class TestFunction(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-"""
-https://en.wikipedia.org/wiki/Interval_arithmetic
-a < b
-
-if max(a) <  min(b) =>  a, b  |  -, -   (always true)
-if min(a) >= max(b) =>  -, -  |  a, b   (always false)
-
-
-lhs = () - a0, a1
-rhs = [] - b0, b1
-operator = <
-
-a < b is True:
-    ()[] - a = a, b = b
-    ([)] - a = (a0, a1), b = (b0, b1)
-    ([]) - a = (a0, b1), b = (b0, b1)
-    [()] - a = (a0, a1), b = (a0, b1)
-    [(]) - a = (a0, b1), b = (a0, b1)
-    []() - a = None, b = None
-
-a = (a0, min(a1, b1))
-b = (max(a0, b0), b1)
-
-
-a < b is False:
-    ()[] - a = None, b = None
-    ([)] - a = (b0, a1), b = (b0, b1)
-    ([]) - a = (b0, a1), b = (b0, b1)
-    [()] - a = (a0, a1), b = (a0, b1)
-    [(]) - a = (a0, a1), b = (a0, b1)
-    []() - a = a, b = b
-
-"""
+    """
+    https://en.wikipedia.org/wiki/Interval_arithmetic
+    a < b
+    
+    if max(a) <  min(b) =>  a, b  |  -, -   (always true)
+    if min(a) >= max(b) =>  -, -  |  a, b   (always false)
+    
+    
+    lhs = () - a0, a1
+    rhs = [] - b0, b1
+    operator = <
+    
+    a < b is True:
+        ()[] - a = a, b = b
+        ([)] - a = (a0, a1), b = (b0, b1)
+        ([]) - a = (a0, b1), b = (b0, b1)
+        [()] - a = (a0, a1), b = (a0, b1)
+        [(]) - a = (a0, b1), b = (a0, b1)
+        []() - a = None, b = None
+    
+    a = (a0, min(a1, b1))
+    b = (max(a0, b0), b1)
+    
+    
+    a < b is False:
+        ()[] - a = None, b = None
+        ([)] - a = (b0, a1), b = (b0, b1)
+        ([]) - a = (b0, a1), b = (b0, b1)
+        [()] - a = (a0, a1), b = (a0, b1)
+        [(]) - a = (a0, a1), b = (a0, b1)
+        []() - a = a, b = b
+    
+    """
 
 
 

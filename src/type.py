@@ -22,9 +22,10 @@ class Type(ABC):
     def __repr__(self):
         pass
 
-    def replace(self, other: 'Type'):
-        self.__class__ = copy.deepcopy(other.__class__)
-        self.__dict__  = copy.deepcopy(other.__dict__)
+    def __eq__(self, other):
+        if not isinstance(other, Type):
+            return False
+        return self.is_equal(other)
 
     def is_equal(self, other: 'Type') -> bool:
         return (
@@ -75,7 +76,7 @@ class PrimitiveType(Type):
         return False
 
     def __repr__(self):
-        return f"{self.qualifier_str()} {self.name}".strip()
+        return f"{self.qualifier_str()} {self.name}[{self.size}]".strip()
 
 
 class LiteralType(Type):
