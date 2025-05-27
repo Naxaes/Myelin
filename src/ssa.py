@@ -15,5 +15,4 @@ def check_if_in_ssa_form(module):
                     print(f"Variable '{instruction.dest}' is defined multiple times in the  same block.")
                     return False
                 seen_vars.add(instruction.dest)
-        print(seen_vars)
     return True

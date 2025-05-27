@@ -13,3 +13,14 @@ class Module:
         self.constants = constants
         self.types = types
         self.imports = imports
+
+    def __repr__(self):
+        result = f"Module: {self.name}\n"
+        for name, func in self.functions.items():
+            result += f"  Function: {name}\n"
+            for block in func.blocks:
+                result += f"    Block: {block.label}\n"
+                for instruction in block.instructions:
+                    result += f"      {instruction}\n"
+                result += f"      {block.terminator}\n"
+        return result

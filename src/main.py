@@ -35,13 +35,7 @@ def main():
     if not check_if_in_ssa_form(module):
         raise ValueError("Module is not in SSA form. Please run the SSA pass before type checking.")
 
-    for name, func in module.functions.items():
-        print(f"Function: {name}")
-        for block in func.blocks:
-            print(f"  Block: {block.label}")
-            for instruction in block.instructions:
-                print(f"        {instruction}")
-            print(f"        {block.terminator}")
+    # print(module)
 
     if args.check:
         return  # Exit after type checking
