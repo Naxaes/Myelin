@@ -1,8 +1,8 @@
 from typing import Optional
 from collections import namedtuple
+from ir.ir import Op, Code
 from ir.basic_block import Block
 from ir.function import Function
-from ir.ir import Op, Code
 from ir.module import Module, Builtin
 
 
@@ -47,8 +47,6 @@ def skip(source: str) -> str:
         source, _ = parse_filter(source, lambda x: x == ' ' or x == '\t')
         if source.startswith('#'):
             source, _ = parse_filter(source, lambda x: x != '\n')
-            if source.startswith('\n'):
-                source = source[1:]
     return source
 
 
@@ -74,6 +72,8 @@ def parse_token(source: str, expect_kind: Optional[str] = None, expect_repr: Opt
         while True:
             if source and source[0].isspace():
                 source = source[1:]
+            elif source and source[0] == '#':
+                source = skip(source)
             else:
                 return token_or_throw(source, 'end', '\n')
     elif c.isdigit():
