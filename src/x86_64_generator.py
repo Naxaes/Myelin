@@ -86,7 +86,8 @@ class X86_64_Generator:
                     elif code.op == Op.REF:
                         self.generate_dereference(function, block, code)
                     elif code.op == Op.AS:
-                        pass
+                        src = block.instructions[code.refs[0]].dest
+                        self.mapping[code.dest] = self.peek_reg(src)
                     elif code.op == Op.ACCESS:
                         self.generate_get(function, block, code)
                     else:

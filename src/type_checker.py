@@ -194,7 +194,6 @@ class TypeChecker:
                     assert obj.can_coerce_to(to)
                     self.mapping[block.instructions[code.target()].dest] = to
                     self.mapping[code.dest] = to
-                    code.dest = block.instructions[code.target()].dest
                 elif code.op == Op.BR:
                     pass
                 elif code.op == Op.JMP:

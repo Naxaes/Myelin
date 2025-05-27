@@ -1,0 +1,19 @@
+import * from macos
+import * from core
+
+x := 10
+print_int(x)
+x = 20
+print_int(x)
+y := 30
+print_int(y)
+z := 40
+
+if x != 20 {
+	y = 40
+} else {
+	y = 30
+}
+
+print_int(y)
+exit(x + y)

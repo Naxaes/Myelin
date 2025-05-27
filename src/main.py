@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from ir.function import Function
+
 from lexer import Lexer
 from parser import Parser
+from ssa import check_if_in_ssa_form
 from type_checker import TypeChecker
 from x86_64_generator import X86_64_Generator
 from ir.ir_parser import parse
@@ -31,6 +32,16 @@ def main():
         module = Parser.parse_module(tokens, path.name)
 
     types = TypeChecker.check(module)
+    if not check_if_in_ssa_form(module):
+        raise ValueError("Module is not in SSA form. Please run the SSA pass before type checking.")
+
+    for name, func in module.functions.items():
+        print(f"Function: {name}")
+        for block in func.blocks:
+            print(f"  Block: {block.label}")
+            for instruction in block.instructions:
+                print(f"        {instruction}")
+            print(f"        {block.terminator}")
 
     if args.check:
         return  # Exit after type checking
