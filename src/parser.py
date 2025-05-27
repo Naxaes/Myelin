@@ -131,37 +131,36 @@ class Parser(TokenStream):
         self.functions: Dict[str, Union[Function, Builtin]] = {
             'alloc': Builtin('alloc', [('memory', 'ptr')], {'size': ('int', 0)})
         }
-        self.current = None
+        self.function = None
         self.data = {}
         self.constants = {}
         self.types = {}
         self.imports = {}
         self.in_expression_followed_by_block = False
 
-    def new_function(self, name, params, is_module=False, is_main=False):
-        function = Function(name, params, is_module=is_module, is_main=is_main)
+    def new_function(self, name, is_module=False, is_main=False):
+        function = Function(name, is_module=is_module, is_main=is_main)
+        self.function = function
         self.functions[name] = function
-        self.current = function
-        self.new_block('entry')
-        return function
+        block, offset = self.new_block('entry')
+        assert offset == 0, "The entry block should always be at offset 0"
+        return function, block
 
     def new_block(self, label):
-        block = Block(label, len(self.current.blocks))
-        self.current.blocks.append(block)
-        return block
+        block = Block(label)
+        offset = self.function.add(block)
+        return block, offset
 
     def push(self, instruction):
-        id = len(self.block.instructions)
-        self.block.instructions.append(instruction)
-        return id
+        return self.block.add(instruction)
 
     @property
     def block(self):
-        return self.current.blocks[-1]
+        return self.function.blocks[-1]
 
     def parse_module_as_import(self, name, imports):
         self.imports = imports
-        self.new_function(name, [], is_module=True)
+        self.new_function(name, is_module=True)
         while self.has_more():
             self.parse_stmt()
         self.block.terminator = Code('ret')
@@ -170,7 +169,7 @@ class Parser(TokenStream):
     @staticmethod
     def parse_module(tokens, name):
         self = Parser(tokens, name)
-        self.new_function(name, [], is_module=True, is_main=True)
+        self.new_function(name, is_module=True, is_main=True)
         while self.has_more():
             self.parse_stmt()
         self.block.terminator = Code('ret')
@@ -284,29 +283,29 @@ class Parser(TokenStream):
         self.in_expression_followed_by_block = False
 
         prev = self.block
-        then = self.new_block('then')
+        then, then_offset = self.new_block('then')
         body = self.parse_block()
 
-        elze = None
+        elze, elze_offset = None, None
         if self.next_if(expect='else'):
-            elze  = self.new_block('else')
+            elze, elze_offset  = self.new_block('else')
             other = self.parse_block()
 
-        end = self.new_block('end')
+        end, end_offset = self.new_block('end')
 
-        prev.terminator = Code('br', args=(then.offset, elze.offset if elze else end.offset), refs=(cond, ))
+        prev.terminator = Code('br', args=(then_offset, elze_offset if elze else end_offset), refs=(cond, ))
 
         if then.terminator is None:
-            then.terminator = Code('jmp', args=(end.offset,))
+            then.terminator = Code('jmp', args=(end_offset,))
         if elze and elze.terminator is None:
-            elze.terminator = Code('jmp', args=(elze.offset + 1,))
+            elze.terminator = Code('jmp', args=(elze_offset + 1,))
 
     def parse_while(self):
         _ = self.next(expect='while')
 
         prev = self.block
-        whyle = self.new_block('while')
-        prev.terminator = Code('jmp', args=(whyle.offset,))
+        whyle, whyle_offset = self.new_block('while')
+        prev.terminator = Code('jmp', args=(whyle_offset,))
 
         self.in_expression_followed_by_block = True
         cond = self.parse_expr()
@@ -314,13 +313,13 @@ class Parser(TokenStream):
 
         prev = self.block
 
-        then = self.new_block('then')
+        then, then_offset = self.new_block('then')
         body = self.parse_block()
 
-        then.terminator = Code('jmp', args=(whyle.offset,))
-        end = self.new_block('end')
+        then.terminator = Code('jmp', args=(whyle_offset,))
+        end, end_offset = self.new_block('end')
 
-        prev.terminator = Code('br', args=(then.offset, end.offset), refs=(cond, ))
+        prev.terminator = Code('br', args=(then_offset, end_offset), refs=(cond, ))
 
     def parse_return(self):
         _ = self.next(expect='return')
@@ -365,8 +364,9 @@ class Parser(TokenStream):
         return t
 
     def parse_func_decl(self, name):
-        previous = self.current
-        self.new_function(name.data.decode(), {})
+        previous = self.function
+        self.new_function(name.data.decode())
+
         params = {}
         i = 0
         while not self.next_if(expect=')'):
@@ -376,7 +376,7 @@ class Parser(TokenStream):
             self.next_if(expect=',')
             params[field] = (type, self.push(Code('param', args=(type, ), dest=field)), i)
             i += 1
-        self.current.params = params
+
         returns = []
         if self.next_if('->'):
             i = 0
@@ -385,11 +385,15 @@ class Parser(TokenStream):
                 returns.append((f'ret_{i}', ret.data.decode()))
                 self.next_if(',')
                 i += 1
-        self.current.returns = returns
+
+        self.function.params = params
+        self.function.returns = returns
+
         self.parse_block()
+
         if self.block.terminator is None:
             self.block.terminator = Code('leave')
-        self.current = previous
+        self.function = previous
         return 'func'
 
     def parse_func_call(self):

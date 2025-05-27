@@ -3,9 +3,11 @@ from typing import Optional
 from lexer import Token
 
 
-TERMINATORS  = 'br', 'jmp', 'ret', 'set'
-SIDE_EFFECTS = 'ret', 'print', 'call', 'alloc', 'free'
-INSTRUCTIONS = ("add", 'sub', 'mul', 'gt', 'lt', 'get', 'lit', 'ref', 'move') + SIDE_EFFECTS + TERMINATORS
+TERMINATORS  = 'br', 'jmp', 'ret', 'leave'
+SIDE_EFFECTS = 'ret', 'print', 'call', 'alloc', 'free', 'syscall', 'decl', 'multidecl', 'asm'
+ARITHMETICS = '+', '-', '*', '/', '%'
+LOGICALS = 'and', 'or', 'not', '==', '!=', '>', '<', '>=', '<='
+INSTRUCTIONS = ARITHMETICS + LOGICALS + ('.', 'as', 'index', 'assign', 'get', 'lit', 'ref', 'move', 'param', 'field', 'init') + SIDE_EFFECTS + TERMINATORS
 
 
 
@@ -35,33 +37,28 @@ def c(**kwargs):
 
     if op in ("add", 'sub', 'mul', 'gt', 'lt', 'get'):
         a, b = kwargs.pop('refs')
-        type = kwargs.pop('type', None)
         dest = kwargs.pop('dest')
         assert not kwargs
-        return Code(op, type=type, dest=dest, refs=(a, b))
+        return Code(op, dest=dest, refs=(a, b))
     if op == "lit":
         a, *_ = kwargs.pop('args'); assert not _
-        type = kwargs.pop('type', None)
         dest = kwargs.pop('dest')
         assert not kwargs
-        return Code(op, type=type, dest=dest, args=(int(a),))
+        return Code(op, dest=dest, args=(int(a),))
     if op == "print":
         refs = kwargs.pop('refs')
-        type = kwargs.pop('type', None)
         assert not kwargs
-        return Code(op, type=type, refs=refs)
+        return Code(op, refs=refs)
     if op in ('ref', 'move', 'alloc'):
         a, *_ = kwargs.pop('refs'); assert not _
-        type = kwargs.pop('type', None)
         dest = kwargs.pop('dest')
         assert not kwargs
-        return Code(op, type=type, dest=dest, refs=(a,))
+        return Code(op, dest=dest, refs=(a,))
     if op in "br":
         c, *_ = kwargs.pop('refs'); assert not _
         l, r = kwargs.pop('args')
-        type = kwargs.pop('type', None)
         assert not kwargs
-        return Code(op, type=type, args=(l, r), refs=(c, ))
+        return Code(op, args=(l, r), refs=(c, ))
     if op == 'jmp':
         a, *_ = kwargs.pop('args'); assert not _
         assert not kwargs
@@ -72,8 +69,7 @@ def c(**kwargs):
         return Code(op, refs=refs)
     if op == 'set':
         obj, idx, val = kwargs.pop('refs')
-        type = kwargs.pop('type', None)
         assert not kwargs
-        return Code(op, type=type, refs=(obj, idx, val))
+        return Code(op, refs=(obj, idx, val))
 
     assert False, f'{op}, {kwargs}'

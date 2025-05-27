@@ -49,9 +49,9 @@ class X86_64_Generator:
             self.code += f"; -------- '{function.name}' --------\n{function.name}:\n"
             self.mapping = { }
             self.vars    = { }
-            for block in function.blocks:
+            for block_offset, block in enumerate(function.blocks):
                 self.mapping = self.vars.copy()
-                self.code += f'.{block.label}_{block.offset}:\n'
+                self.code += f'.{block.label}_{block_offset}:\n'
                 for code in block.instructions:
                     if code.op == 'lit':
                         self.generate_lit(function, block, code)
@@ -95,7 +95,7 @@ class X86_64_Generator:
                 if code.op == 'br':
                     self.generate_ite(function, block, code)
                 elif code.op == 'jmp':
-                    self.generate_jmp(function, block, code)
+                    self.generate_jmp(function, code, block_offset)
                 elif code.op == 'ret':
                     self.generate_ret(function, block, code)
                 elif code.op == 'leave':
@@ -138,10 +138,10 @@ class X86_64_Generator:
         if comment: self.code += f'\t\t; {comment}'
         self.code += '\n'
 
-    def generate_jmp(self, function, block, code):
-        if code.args[0] != block.offset + 1:  # No need to jump to next block.
+    def generate_jmp(self, function, code, offset):
+        if code.args[0] != offset + 1:  # No need to jump to next block.
             block = function.blocks[code.args[0]]
-            self.add_code('jmp', f'.{block.label}_{block.offset}')
+            self.add_code('jmp', f'.{block.label}_{code.args[0]}')
             self.code += '\n'
 
     def generate_param(self, code):
@@ -248,9 +248,9 @@ class X86_64_Generator:
         left = function.blocks[code.args[0]]
         right = function.blocks[code.args[1]]
         src = self.consume_reg(cond)
-        self.code += f'\t; if {cond} goto {left.label}_{left.offset} else {right.label}_{right.offset}\n'
+        self.code += f'\t; if {cond} goto {left.label}_{code.args[0]} else {right.label}_{code.args[1]}\n'
         self.add_code('test', src, src)
-        self.add_code('je', f'.{right.label}_{right.offset}')
+        self.add_code('je', f'.{right.label}_{code.args[1]}')
         self.code += '\n'
 
     def generate_decl(self, function, block, code):

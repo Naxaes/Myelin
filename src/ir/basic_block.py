@@ -12,15 +12,20 @@ def find(table, v):
 
 
 class Block:
-    def __init__(self, label: str, offset, instructions: list[Code] = (), parameters: list[dict] = None):
+    def __init__(self, label: str, instructions: list[Code] = (), terminator: Optional[Code] = None, parameters: tuple[dict] = ()):
         assert all(x.op in INSTRUCTIONS for x in instructions)
 
         self.label        = label
-        self.offset       = offset
-        self.instructions = instructions or []
-        self.terminator   = instructions[-1] if instructions else None
-        self.parameters   = parameters or []
-        assert self.terminator.op in TERMINATORS if instructions else True
+        self.instructions = list(instructions)
+        self.terminator   = terminator
+        self.parameters   = parameters
+        assert self.terminator.op in TERMINATORS if instructions else True, f"Invalid terminator '{self.terminator.op}' in block {self.label}, expected one of {TERMINATORS}"
+
+    def add(self, instruction: Code) -> None:
+        assert instruction.op in INSTRUCTIONS, f"Invalid instruction '{instruction.op}' in block {self.label}, expected one of {INSTRUCTIONS}"
+        id = len(self.instructions)
+        self.instructions.append(instruction)
+        return id
 
     def gen(self) -> set[str]:
         """
@@ -230,7 +235,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="add", dest="c", refs=("a", "b")),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         used = block.use()
         self.assertEqual(used, {'x', 'y', 'z'})
 
@@ -244,7 +249,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("d", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.dce()
         self.assertEqual(block.instructions, [
             c(op="lit", dest="a", args=(4, )),
@@ -264,7 +269,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("d", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.dce()
         self.assertEqual(block.instructions, [
             c(op="lit", dest="a", args=(1, )),
@@ -287,7 +292,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("d", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.dce(keep={"c", "f"})
         self.assertEqual(block.instructions, [
             c(op="lit", dest="a", args=(4, )),
@@ -310,7 +315,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("x", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.lvn({}, {})
         self.assertEqual(block.instructions, [
             c(op="lit", dest="a", args=(4, )),
@@ -332,7 +337,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("z", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.to_ssa()
         block.lvn({}, {})
         self.assertEqual(block.instructions, [
@@ -356,7 +361,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="print", refs=("a", )),                 # Should be replaced by a''''
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         block.to_ssa()
         block.lvn({}, {})
         print(*block.instructions, sep='\n')
@@ -386,7 +391,7 @@ class TestBasicBlock(unittest.TestCase):
             c(op="ref", dest="q", refs=("y", )),
             c(op='ret')
         ]
-        block = Block('test', 0, instructions)
+        block = Block('test', instructions)
         loans = block.borrow_check({}, set())
         print(loans)
 

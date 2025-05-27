@@ -1,4 +1,4 @@
-from typing import Callable, List, Any
+from typing import Callable, List, Any, Optional
 
 from ir.basic_block import Block, Entry
 from ir.ir import Code
@@ -13,7 +13,7 @@ def ge(a, b): return (max(a[0], b[0]), a[1]), (b[0], min(a[1], b[1]))
 class Function:
     def __init__(self,
                  name: str,
-                 parameters: list[dict[str, str]],
+                 parameters: list[dict[str, str]] = None,
                  return_values: list[str] = None,
                  blocks: list[Block] = None,
                  predecessors: dict[str, list[Block]] = None,
@@ -32,6 +32,11 @@ class Function:
         self._successors = successors
         self._live_in = None
         self._live_out = None
+
+    def add(self, block: Block):
+        id = len(self.blocks)
+        self.blocks.append(block)
+        return id
 
     @staticmethod
     def create(name: str, parameters: list[dict[str, str]], return_values: list[str], instructions: list[dict]):
@@ -614,22 +619,22 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='a', args=(47, )),
             c(op='lit', dest='b', args=(42, )),
             c(op='br',  refs=('cond', ), args=('left', 'right')),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='lit', dest='b', args=(1,)),
             c(op='lit', dest='c', args=(5,)),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='lit', dest='a', args=(2, )),
             c(op='lit', dest='c', args=(10, )),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='sub', dest='d', refs=('a', 'c')),
             c(op='print', refs=('d', )),
             c(op='ret'),
@@ -678,23 +683,23 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='a', args=(34,)),
             c(op='lit', dest='b', args=(35,)),
             c(op='br', args=('left', 'right'), refs=('cond', )),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='sub', dest='x', refs=('b', 'a')),
             c(op='sub', dest='y', refs=('a', 'b')),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='sub', dest='y', refs=('b', 'a')),
             c(op='lit', dest='a', args=(0, )),
             c(op='sub', dest='x', refs=('a', 'b')),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='print', refs=('x', )),
             c(op='print', refs=('y',)),
             c(op='ret'),
@@ -736,22 +741,22 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='x', args=(34,)),
             c(op='lit', dest='y', args=(35,)),
             c(op='gt',  dest='cond', refs=('x', 'y')),
             c(op='br', args=('left', 'right'), refs=('cond', )),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='lit', dest='one', args=(1, )),
             c(op='add', dest='z', refs=('x', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='add', dest='z', refs=('x', 'x')),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='lit', dest='zero', args=(0, )),
             c(op='add', dest='x', refs=('z', 'zero')),
             c(op='print', refs=('x',)),
@@ -797,21 +802,21 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='x', args=(0, )),
             c(op='lit', dest='y', args=(10,)),
             c(op='jmp', args=('header', )),
         ])
-        header = Block('header', 1, [
+        header = Block('header', [
             c(op='lt', dest='cond', refs=('x', 'y')),
             c(op='br', args=('body', 'end'), refs=('cond', )),
         ])
-        body = Block('body', 2, [
+        body = Block('body', [
             c(op='lit', dest='one', args=(1, )),
             c(op='add', dest='x', refs=('x', 'one')),
             c(op='jmp', args=('header',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='print', refs=('x',)),
             c(op='ret'),
         ])
@@ -908,14 +913,14 @@ class TestFunction(unittest.TestCase):
                 ret cond
         end
         """, [])
-        b0 = Block('b0', 0, [c(op='jmp', args=('b1',))])
-        b1 = Block('b1', 1, [c(op='br',  args=('b2', 'b4'), refs=('cond', ))])
-        b2 = Block('b2', 2, [c(op='jmp', args=('b3',))])
-        b3 = Block('b3', 3, [c(op='br',  args=('b1', 'b5'), refs=('cond', ))])
-        b4 = Block('b4', 4, [c(op='jmp', args=('b5',))])
-        b5 = Block('b5', 5, [c(op='jmp', args=('b6',))])
-        b6 = Block('b6', 6, [c(op='br',  args=('b5', 'b7'), refs=('cond', ))])
-        b7 = Block('b7', 7, [c(op='ret', refs=('cond', ))])
+        b0 = Block('b0', [c(op='jmp', args=('b1',))])
+        b1 = Block('b1', [c(op='br',  args=('b2', 'b4'), refs=('cond', ))])
+        b2 = Block('b2', [c(op='jmp', args=('b3',))])
+        b3 = Block('b3', [c(op='br',  args=('b1', 'b5'), refs=('cond', ))])
+        b4 = Block('b4', [c(op='jmp', args=('b5',))])
+        b5 = Block('b5', [c(op='jmp', args=('b6',))])
+        b6 = Block('b6', [c(op='br',  args=('b5', 'b7'), refs=('cond', ))])
+        b7 = Block('b7', [c(op='ret', refs=('cond', ))])
         function = Function(
             'test', [{'name': 'cond', 'type': 'bool'}], [],
             [b0, b1, b2, b3, b4, b5, b6, b7],
@@ -976,7 +981,7 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='one', args=(1,)),
             c(op='lit', dest='x', args=(22,)),
             c(op='lit', dest='y', args=(44,)),
@@ -985,16 +990,16 @@ class TestFunction(unittest.TestCase):
             c(op='ref', dest='q', refs=('y', )),
             c(op='br', args=('left', 'right'), refs=('cond', )),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='move', dest='p', refs=('q', )),
             c(op='add', dest='x', refs=('x', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='add', dest='y', refs=('y', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='print', refs=('p',)),
             c(op='ret'),
         ])
@@ -1036,7 +1041,7 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='one', args=(1,)),
             c(op='lit', dest='x', args=(22,)),
             c(op='lit', dest='y', args=(44,)),
@@ -1045,16 +1050,16 @@ class TestFunction(unittest.TestCase):
             c(op='ref', dest='q', refs=('y',)),
             c(op='br', args=('left', 'right'), refs=('cond',)),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='move', dest='p', refs=('q',)),
             c(op='add', dest='x', refs=('x', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='add', dest='y', refs=('y', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='add', dest='y', refs=('y', 'one')),
             c(op='print', refs=('p',)),
             c(op='ret'),
@@ -1096,7 +1101,7 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='one', args=(1,)),
             c(op='lit', dest='x', args=(22,)),
             c(op='lit', dest='y', args=(44,)),
@@ -1106,16 +1111,16 @@ class TestFunction(unittest.TestCase):
             c(op='ref', dest='r', refs=('y',)),
             c(op='br', args=('left', 'right'), refs=('cond',)),
         ])
-        left = Block('left', 1, [
+        left = Block('left', [
             c(op='move', dest='p', refs=('q',)),
             c(op='add', dest='x', refs=('x', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        right = Block('right', 2, [
+        right = Block('right', [
             c(op='add', dest='y', refs=('y', 'one')),
             c(op='jmp', args=('end',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='add', dest='y', refs=('y', 'one')),
             c(op='print', refs=('r',)),
             c(op='ret'),
@@ -1155,14 +1160,14 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='c', args=(32,)),
             c(op='alloc', dest='a', refs=('c',)),
             c(op='lit', dest='i', args=(0,)),
             c(op='lit', dest='one', args=(1,)),
             c(op='jmp', args=('loop',)),
         ])
-        loop = Block('loop', 1, [
+        loop = Block('loop', [
             c(op='lit', dest='two', args=(2,)),
             c(op='mul', dest='val', refs=('i', 'two')),
             c(op='set', refs=('a', 'i', 'val')),
@@ -1170,7 +1175,7 @@ class TestFunction(unittest.TestCase):
             c(op='lt', dest='cond', refs=('i', 'c')),
             c(op='br', args=('loop', 'end'), refs=('cond',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='lit', dest='x', args=(30, )),
             c(op='get', dest='y', refs=('a', 'x')),
             c(op='print', refs=('a',)),
@@ -1234,24 +1239,24 @@ class TestFunction(unittest.TestCase):
                 ret
         end
         """, [])
-        entry = Block('entry', 0, [
+        entry = Block('entry', [
             c(op='lit', dest='sum', args=(0,)),
             c(op='lit', dest='product', args=(1,)),
             c(op='lit', dest='w', args=(7,)),
             c(op='jmp', args=('header',)),
         ])
-        header = Block('header', 1, [
+        header = Block('header', [
             c(op='lit', dest='i', args=(1,)),
             c(op='lt', dest='cond', refs=('i', 'n')),
             c(op='br', args=('body', 'end'), refs=('cond',)),
         ])
-        body = Block('body', 2, [
+        body = Block('body', [
             c(op='add', dest='temp', refs=('i', 'w')),
             c(op='add', dest='sum', refs=('sum', 'temp')),
             c(op='mul', dest='product', refs=('product', 'i')),
             c(op='jmp', args=('header',)),
         ])
-        end = Block('end', 3, [
+        end = Block('end', [
             c(op='print', refs=('sum',)),
             c(op='print', refs=('product',)),
             c(op='ret'),
