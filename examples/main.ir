@@ -1,0 +1,90 @@
+# Testing borrowing rules
+
+
+# Valid: Ownership of x is moved to y. x is no longer accessible.
+@test_0()
+    $entry
+        x := 32
+        y := move x
+        _ := call print y
+        ret
+end
+
+
+# Valid: Multiple immutable borrows of x are allowed.
+@test_1()
+    $entry
+        x := 1
+        r1 := brw x
+        r2 := brw x
+        _ := call print r1
+        _ := call print r2
+		ret
+end
+
+
+# Valid: A single mutable borrow of x.
+@test_2()
+    $entry
+        x := 5
+        r := ref x
+        _ := call print r
+		ret
+end
+
+
+# Invalid: Cannot create a mutable borrow while immutable borrows exist.
+@test_3()
+    $entry
+        x := 7
+        r1 := brw x
+        r2 := ref x
+        _ := call print r2
+		ret
+end
+
+
+# Valid: Owner read before mutation through mutable reference.
+@test_4()
+    $entry
+        x := 1
+        r := ref x
+        tmp := copy x
+        r := 200
+        _ := call print tmp
+		ret
+end
+
+
+# Invalid: Owner read after mutation through mutable reference.
+@test_5()
+    $entry
+        x := 1
+        r := ref x
+        r := 2
+        tmp := 0
+        _ := call print tmp
+		ret
+end
+
+
+# Invalid: x is moved in both branches — potential double move.
+@test_6()
+    $entry
+        x := 1
+        cond := 0
+        br cond $left $right
+
+    $left
+        y := move x
+        jmp $end
+
+    $right
+        z := move x
+        jmp $end
+
+    $end
+        _0 := call print y
+        _1 := call print z
+        ret
+end

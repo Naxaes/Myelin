@@ -33,6 +33,7 @@ class Op(Enum):
     BRW = auto()
     REF = auto()
     MOVE = auto()
+    COPY = auto()
     PARAM = auto()
     FIELD = auto()
     INIT = auto()
@@ -66,7 +67,7 @@ SIDE_EFFECTS = (Op.RET, Op.PRINT, Op.CALL, Op.ALLOC, Op.FREE, Op.SYSCALL, Op.DEC
 ARITHMETICS = (Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD)
 LOGICALS = (Op.AND, Op.OR, Op.NOT, Op.EQ, Op.NEQ, Op.GT, Op.LT, Op.GTE, Op.LTE)
 INSTRUCTIONS = ARITHMETICS + LOGICALS + (
-    Op.DOT, Op.AS, Op.INDEX, Op.ASSIGN, Op.GET, Op.LIT, Op.REF, Op.MOVE, Op.PARAM, Op.FIELD, Op.INIT
+    Op.DOT, Op.AS, Op.INDEX, Op.ASSIGN, Op.GET, Op.LIT, Op.REF, Op.MOVE, Op.COPY, Op.BRW, Op.PARAM, Op.FIELD, Op.INIT
 ) + SIDE_EFFECTS + TERMINATORS + (Op.SET, Op.ACCESS, Op.ASM, Op.DECL, Op.MULTIDECL, Op.LABEL)
 
 @dataclass

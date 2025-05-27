@@ -160,8 +160,9 @@ class X86_64_Generator:
         self.finish_function_call(code, pushed, returns = 1)
 
     def generate_asm(self, function, block, code):
-        index, value = block.instructions[code.refs[0]].args
-        code = '\n\t; Inline asm\n\t' + '\n\t'.join(value.split('\\n'))
+        ty, idx, val = block.instructions[code.refs[0]].args
+        assert ty == 'str', f'Expected asm to be a string, got {ty}'
+        code = '\n\t; Inline asm\n\t' + '\n\t'.join(val.split('\\n'))
         self.code += code + '\n'
 
     def finish_function_call(self, code, pushed, returns = 0):

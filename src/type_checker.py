@@ -182,6 +182,12 @@ class TypeChecker:
                 elif code.op == Op.MOVE:
                     target = self.type_of(block, code.target())
                     self.mapping[code.dest] = target
+                elif code.op == Op.BRW:
+                    target = self.type_of(block, code.target())
+                    self.mapping[code.dest] = target
+                elif code.op == Op.COPY:
+                    target = self.type_of(block, code.target())
+                    self.mapping[code.dest] = target
                 elif code.op == Op.AS:
                     obj = self.type_of(block, code.target())
                     to  = self.lookup_type(code.type())

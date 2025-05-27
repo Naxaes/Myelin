@@ -15,8 +15,10 @@ KEYWORDS = {
     'set',
     'get',
     'end',
+    'brw',
     'ref',
     'move',
+    'copy',
     'alloc',
 }
 OPERATORS = {
@@ -45,6 +47,8 @@ def skip(source: str) -> str:
         source, _ = parse_filter(source, lambda x: x == ' ' or x == '\t')
         if source.startswith('#'):
             source, _ = parse_filter(source, lambda x: x != '\n')
+            if source.startswith('\n'):
+                source = source[1:]
     return source
 
 
@@ -173,7 +177,7 @@ def parse(source: str):
                 raise RuntimeError(f'Expected kind ident or ":", got {equal_or_ty.kind} ({equal_or_ty.repr})')
 
             source, arg_or_op = parse_token(source)
-            if arg_or_op.repr in ('ref', 'move', 'alloc'):
+            if arg_or_op.repr in ('ref', 'move', 'copy', 'brw', 'alloc'):
                 source, arg = parse_token(source, expect_kind='ident')
                 source, _   = parse_token(source, expect_kind='end')
                 match arg_or_op.repr:
@@ -181,6 +185,10 @@ def parse(source: str):
                         block.add(Code(Op.REF, dest=dest, refs=(arg.repr, )))
                     case 'move':
                         block.add(Code(Op.MOVE, dest=dest, refs=(arg.repr, )))
+                    case 'copy':
+                        block.add(Code(Op.COPY, dest=dest, refs=(arg.repr,)))
+                    case 'brw':
+                        block.add(Code(Op.BRW, dest=dest, refs=(arg.repr, )))
                     case 'alloc':
                         block.add(Code(Op.ALLOC, dest=dest, refs=(arg.repr, )))
                     case _:
