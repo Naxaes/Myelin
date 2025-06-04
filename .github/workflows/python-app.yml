@@ -27,4 +27,4 @@ jobs:
     - name: Test
       run: |
         mkdir -p build
-        python3 test/rere.py replay test/test.list
+        python3 tests/rere.py replay tests/test.list
