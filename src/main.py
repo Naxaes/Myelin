@@ -25,7 +25,7 @@ def main():
     path = Path(args.file)
 
     source = open(path).read()
-    if args.is_ir:
+    if args.is_ir or path.suffix == '.ir':
         module = parse(source)
     else:
         tokens = Lexer.lex(source)

@@ -45,7 +45,7 @@ times 4096-($-memory) db 0
 """
 
 
-import os
+import subprocess
 
 
 def le16(n):
@@ -282,11 +282,15 @@ def make_macho_executable(output, code, data, generate_debug=False):
     header = f'BITS 64\norg {entry}\n'
     program = header+code+INTERNAL_CODE+INTERNAL_DATA+data+PAD_DATA
 
+    subprocess.run(['mkdir', '-p', 'build'])
     with open(f'build/{output}.s', 'w') as file:
         file.write(program)
 
     # Code binary
-    os.system(f'nasm -f bin -w+all -o build/{output} build/{output}.s && chmod +x build/{output}')
+    status = subprocess.run(['nasm', '-f', 'bin', '-w+all', '-o', f'build/{output}', f'build/{output}.s'], capture_output=True)
+    if status.returncode != 0: raise RuntimeError(f'Nasm failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
+    status = subprocess.run(['chmod', '+x', f'build/{output}'], capture_output=True)
+    if status.returncode != 0: raise RuntimeError(f'Nasm failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
     binary = open(f'build/{output}', 'rb').read()
 
     # Debug code
@@ -295,7 +299,7 @@ def make_macho_executable(output, code, data, generate_debug=False):
         debug = header + code + INTERNAL_CODE + INTERNAL_DATA + data + PAD_DATA
         with open(f'build/{output}_debug.s', 'w') as file:
             file.write(debug)
-        os.system(f'nasm -f macho64 -g -F dwarf -w+all build/{output}_debug.s -o build/{output}_debug.o && ld -macos_version_min 11.0 -L /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/ -lSystem -o build/{output}_debug -e _start build/{output}_debug.o')
+        subprocess.run(['nasm', '-f', 'macho64', '-g', '-F', 'dwarf', '-w+all', f'build/{output}_debug.s', '-o', f'build/{output}_debug.o', '&&', 'ld', '-macos_version_min', '11.0', '-L', '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/', '-lSystem', '-o', f'build/{output}_debug', '-e', '_start', f'build/{output}_debug.o'], capture_output=True)
 
     zero  = [
         *le32(LC_SEGMENT_64),

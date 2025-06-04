@@ -29,6 +29,11 @@ print_int: (n: int) {
     buffer[i] = 10
     i = i - 1
 
+    if n == 0 {
+        buffer[i] = 48
+        i = i - 1
+    }
+
     while n != 0 and i != 0 {
         buffer[i] = 48 + n % 10
         n = n / 10

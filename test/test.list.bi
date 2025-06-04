@@ -13,9 +13,9 @@ Exit status: 32
 :b shell 48
 python3 src/main.py examples/fibonacci.sf  --run
 :i returncode 0
-:b stdout 164
-
-
+:b stdout 166
+0
+0
 1
 1
 2
