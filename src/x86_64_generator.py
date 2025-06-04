@@ -1,4 +1,4 @@
-from ir.ir import Op
+from ir import Op
 from type import LiteralType, Type, StructType
 
 

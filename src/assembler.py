@@ -206,7 +206,6 @@ def macho_load_command(name, origin, size):
     # cmd_size = 72
     cmd_size = 72 + 80
     offset = HEADER_SIZE + CMD_SIZE + 2*(CMD_SIZE+SECT_SIZE) + START_CMD_SIZE
-    print('MACHO SIZE: ', size)
     return [
         *le32(LC_SEGMENT_64),
         *le32(cmd_size),

@@ -1,7 +1,6 @@
 from typing import Callable, List, Any
 
-from ir.ir import Code, TERMINATORS, Op, ARITHMETICS
-from ir.basic_block import Block, Entry
+from ir import Code, TERMINATORS, Op, ARITHMETICS, Block, Entry
 
 
 def lt(a, b): return (a[0], min(a[1], b[1] - 1)), (max(a[0] + 1, b[0]), b[1])
@@ -173,7 +172,6 @@ class Function:
         if len(visited) < len(self.blocks):
             for b in self.blocks:
                 if b.label not in visited:
-                    print(f"{b.label} is not visited")
                     b.instructions = []
             self.blocks = [b for b in self.blocks if b.label in visited]
 
@@ -470,8 +468,6 @@ class Function:
 
         first: dict[str, str] = dict()
         in_, out = self.analyze(first, first, merge=merge, transfer=trans, forward=True)
-        print(in_)
-        print(out)
         return in_, out
 
     def automatically_drop(self) -> None:
@@ -596,7 +592,7 @@ def check_all_variables_are_initialized_before_use(function: Function):
     def merge_check(block: Block, set_list: list[set]) -> set[str]:
         for arguments in set_list:
             if len(block.arguments - arguments) > 0:
-                print(f'Oh no! {block.label}: {block.arguments} - {arguments}')
+                raise Exception(f'Oh no! {block.label}: {block.arguments} - {arguments}')
 
         return set().union(*set_list)
 

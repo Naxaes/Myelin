@@ -1,6 +1,6 @@
 from typing import Dict, Union
 
-from ir.function import Function, Builtin
+from ir import Function, Builtin
 
 
 class Module:

@@ -11,8 +11,8 @@ def check_if_in_ssa_form(module):
                 if instruction.dest is None:
                     continue
                 if instruction.dest in seen_vars:
-                    print(f"Error in function '{function.name}' at block '{block.label}':")
-                    print(f"Variable '{instruction.dest}' is defined multiple times in the  same block.")
-                    return False
+                    error = f"Error in function '{function.name}' at block '{block.label}':\n"
+                    error += f"Variable '{instruction.dest}' is defined multiple times in the  same block."
+                    raise RuntimeError(error)
                 seen_vars.add(instruction.dest)
     return True

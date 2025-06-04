@@ -1,5 +1,5 @@
 from ir.ir_parser import parse
-from ir.ir import c, Op
+from ir.ir_code import c, Op
 import unittest
 
 
@@ -178,8 +178,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         live_in, live_out = function.interval_analysis()
-        print(str(live_in).replace("'", '"').replace(')', ']').replace('(', '['))
-        print(str(live_out).replace("'", '"').replace(')', ']').replace('(', '['))
         self.assertDictEqual(live_in, {
             'entry': {'x': (-2147483648, 2147483648)},
             'header': {'x': (0, 2147483648), 'y': (0, None), 'zero': (0, 0), 'ten': (10, 10), 'c': (False, False),
@@ -222,7 +220,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         dom = function.dominators()
-        print(dom)
         self.assertDictEqual(dom, {
             0: {0},
             1: {0, 1},
@@ -259,8 +256,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         live_in, live_out = function.live_variables()
-        print(live_in)
-        print(live_out)
         try:
             function.borrow_check(live_in)
         except:
@@ -292,8 +287,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         live_in, live_out = function.live_variables()
-        print(live_in)
-        print(live_out)
         self.assertRaises(RuntimeError, lambda: function.borrow_check(live_in))
 
     def test_multiple_borrowing_error(self):
@@ -323,8 +316,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         live_in, live_out = function.live_variables()
-        print(live_in)
-        print(live_out)
         self.assertRaises(RuntimeError, lambda: function.borrow_check(live_in))
 
     def test_automatic_free(self):
@@ -375,7 +366,6 @@ class TestFunction(unittest.TestCase):
         """)
         function = module.functions['test']
         function.automatically_drop()
-        print(function.block_at('true').instructions)
         assert function.block_at('true').instructions[-2]['op'] == Op.FREE
         assert function.block_at('false').instructions[-2]['op'] == Op.FREE
 

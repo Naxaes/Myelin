@@ -1,9 +1,6 @@
 from typing import Optional
 from collections import namedtuple
-from ir.ir import Op, Code
-from ir.basic_block import Block
-from ir.function import Function
-from ir.module import Module, Builtin
+from ir import Op, Code, Block, Function, Module, Builtin
 
 
 KEYWORDS = {

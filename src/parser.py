@@ -1,10 +1,7 @@
 from typing import Union, Dict
 
 from lexer import Lexer, Token, TokenStream
-from ir.ir import Op
-from ir.basic_block import Block, Code
-from ir.function import Function, Builtin
-from ir.module import Module
+from ir import Op, Function, Builtin, Block, Code, Module
 
 
 class Parser(TokenStream):

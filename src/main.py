@@ -5,8 +5,7 @@ from parser import Parser
 from ssa import check_if_in_ssa_form
 from type_checker import TypeChecker
 from x86_64_generator import X86_64_Generator
-from ir.ir_parser import parse
-from ir.passes import remove_unused_functions
+from ir import parse, remove_unused_functions
 from assembler import make_macho_executable
 
 from pathlib import Path

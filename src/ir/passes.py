@@ -1,6 +1,4 @@
-from ir.ir import Op
-from ir.module import Module
-
+from ir import Op, Module
 
 
 def remove_unused_functions(module: Module, logger=None):
