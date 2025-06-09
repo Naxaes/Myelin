@@ -4,3 +4,10 @@ from .function import Function, Builtin
 from .module import Module
 from .passes import remove_unused_functions
 from .ir_parser import parse
+
+
+
+def validate_ir(module):
+    for function in module.functions.values():
+        for block, code in function.code():
+            assert code.op and code.token, f'{code}, {code.token}'

@@ -100,15 +100,10 @@ PYTHONPATH=src python3 src/main.py examples/main.ir       --check --is-ir
 
 :b stderr 0
 
-:b shell 49
-PYTHONPATH=src python3 -m unittest discover tests
+:b shell 68
+PYTHONPATH=src python3 -m unittest discover tests -q -b 2> /dev/null
 :i returncode 0
 :b stdout 0
 
-:b stderr 140
-.................s....s......
-----------------------------------------------------------------------
-Ran 29 tests in 0.003s
-
-OK (skipped=2)
+:b stderr 0
 

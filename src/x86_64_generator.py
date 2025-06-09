@@ -52,7 +52,7 @@ class X86_64_Generator:
             self.vars    = { }
             for block_offset, block in enumerate(function.blocks):
                 self.mapping = self.vars.copy()
-                self.code += f'.{block.label}_{block_offset}:\n'
+                self.code += f'.{block.label}:\n'
                 for code in block.instructions:
                     if code.op == Op.LIT:
                         self.generate_lit(function, block, code)
@@ -140,7 +140,7 @@ class X86_64_Generator:
     def generate_jmp(self, function, code, offset):
         if code.args[0] != offset + 1:  # No need to jump to next block.
             block = function.blocks[code.args[0]]
-            self.add_code('jmp', f'.{block.label}_{code.args[0]}')
+            self.add_code('jmp', f'.{block.label}')
             self.code += '\n'
 
     def generate_param(self, code):
@@ -248,9 +248,9 @@ class X86_64_Generator:
         left = function.blocks[code.args[0]]
         right = function.blocks[code.args[1]]
         src = self.consume_reg(cond)
-        self.code += f'\t; if {cond} goto {left.label}_{code.args[0]} else {right.label}_{code.args[1]}\n'
+        self.code += f'\t; if {cond} goto {left.label} else {right.label}\n'
         self.add_code('test', src, src)
-        self.add_code('je', f'.{right.label}_{code.args[1]}')
+        self.add_code('je', f'.{right.label}')
         self.code += '\n'
 
     def generate_decl(self, function, block, code):

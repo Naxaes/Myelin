@@ -97,7 +97,7 @@ class Parser(TokenStream):
         return Parser.PRECEDENCE.get(token.kind, -1)
 
     def __init__(self, tokens: list[Token], name = '__main__'):
-        super().__init__(tokens)
+        super().__init__(tokens, name)
         self.name = name
         self.functions: Dict[str, Union[Function, Builtin]] = {
             'alloc': Builtin('alloc', [('memory', 'ptr')], {'size': ('int', 0)})
@@ -118,7 +118,7 @@ class Parser(TokenStream):
         return function, block
 
     def new_block(self, label):
-        block = Block(label)
+        block = Block( f'bb{len(self.function.blocks)}_' + label)
         offset = self.function.add(block)
         return block, offset
 
@@ -134,7 +134,8 @@ class Parser(TokenStream):
         self.new_function(name, is_module=True)
         while self.has_more():
             self.parse_stmt()
-        self.block.terminator = Code(Op.RET)
+        assert self.block.terminator is None
+        self.block.terminator = Code(Op.RET, token=self.peek())
         return self.functions, self.data, self.constants, self.types
 
     @staticmethod
@@ -143,7 +144,8 @@ class Parser(TokenStream):
         self.new_function(name, is_module=True, is_main=True)
         while self.has_more():
             self.parse_stmt()
-        self.block.terminator = Code(Op.RET)
+        assert self.block.terminator is None
+        self.block.terminator = Code(Op.RET, token=self.peek())
         return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
 
     # TODO: Separate declaration and statements, since a declaration is only allowed
@@ -162,7 +164,7 @@ class Parser(TokenStream):
                 target = self.parse_indexing(ident, is_lvl=True)
                 return self.parse_assign(target=target)
             else:
-                self.parse_func_call()
+                return self.parse_func_call()
         elif t0.kind == 'if':
             return self.parse_if()
         elif t0.kind == 'while':
@@ -222,8 +224,8 @@ class Parser(TokenStream):
             if self.next_if('='):
                 expr = self.parse_expr()
                 for i, name in enumerate(names):
-                    id = self.push(Code(Op.DECL, args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else ()))
-                    # self.block.declarations[name.data.decode()] = id
+                    id = self.push(Code(Op.DECL, args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else (), token=name))
+                return id
             else:
                 if hasattr(type, '__iter__'):
                     for t, name in zip(type, names):
@@ -234,73 +236,94 @@ class Parser(TokenStream):
         elif self.next_if(':='):
             expr = self.parse_expr()
             if len(names) == 1:
-                id = self.push(Code(Op.DECL, dest=names[0].data.decode(), refs=(expr, ) if expr is not None else ()))
+                id = self.push(Code(Op.DECL, dest=names[0].data.decode(), refs=(expr, ) if expr is not None else (), token=names[0]))
             else:
-                id = self.push(Code(Op.MULTIDECL, dest=self.implicit_name(), refs=(expr, ) if expr is not None else (), args=tuple(n.data.decode() for n in names)))
-                # self.block.declarations[name.data.decode()] = id
+                id = self.push(Code(Op.MULTIDECL, dest=self.implicit_name(), refs=(expr, ) if expr is not None else (), args=tuple(n.data.decode() for n in names), token=names[0]))
+            return id
         else:
             raise RuntimeError(f'Unknown token {self.peek()}')
 
     def parse_assign(self, target):
-        _ = self.next(expect='=')
+        assign_token = self.next(expect='=')
         expr = self.parse_expr()
-        return self.push(Code(Op.ASSIGN, refs=(target, expr)))
+        return self.push(Code(Op.ASSIGN, refs=(target, expr), token=assign_token))
 
     def parse_if(self):
-        _ = self.next(expect='if')
+        if_token = self.next(expect='if')
 
+        # The conditional expression should not be in its own block,
+        # as it doesn't create a new label.
         self.in_expression_followed_by_block = True
-        cond = self.parse_expr()
+        condition = self.parse_expr()
         self.in_expression_followed_by_block = False
 
-        prev = self.block
-        then, then_offset = self.new_block('then')
-        body = self.parse_block()
+        # The current block ends the conditional expression and needs
+        # to branch to 'then', and 'else'/'end'.
+        branch_block = self.block
 
-        elze, elze_offset = None, None
+        # The 'then' block starts the if-body.
+        then_block, then_offset = self.new_block('then')
+
+        # The current block ends the if-body, and needs to jump
+        # to the 'end', which is over the 'else' body or the next block.
+        then_body = self.parse_block()
+        end_of_if_body = self.block
+
         if self.next_if(expect='else'):
-            elze, elze_offset  = self.new_block('else')
-            other = self.parse_block()
+            else_block, else_offset = self.new_block('else')
+            branch_block.terminator = Code(Op.BR, args=(then_offset, else_offset), refs=(condition, ), token=if_token)
 
-        end, end_offset = self.new_block('end')
+            else_body = self.parse_block()
 
-        prev.terminator = Code(Op.BR, args=(then_offset, elze_offset if elze else end_offset), refs=(cond, ))
+            end_of_else_block = self.block
+            end, end_offset = self.new_block('end')
+            end_of_else_block.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
+        else:
+            end, end_offset = self.new_block('end')
+            branch_block.terminator = Code(Op.BR, args=(then_offset, end_offset), refs=(condition, ), token=if_token)
 
-        if then.terminator is None:
-            then.terminator = Code(Op.JMP, args=(end_offset,))
-        if elze and elze.terminator is None:
-            elze.terminator = Code(Op.JMP, args=(elze_offset + 1,))
+        end_of_if_body.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
+
+        return then_body
+
 
     def parse_while(self):
-        _ = self.next(expect='while')
+        while_token = self.next(expect='while')
 
-        prev = self.block
-        whyle, whyle_offset = self.new_block('while')
-        prev.terminator = Code(Op.JMP, args=(whyle_offset,))
+        # Previous block must jump into the while block.
+        previous_block = self.block
+        while_condition_entry_block, while_condition_entry_offset = self.new_block('while')
+        previous_block.terminator = Code(Op.JMP, args=(while_condition_entry_offset, ), token=while_token)
 
+        # The conditional expression should be in its own block,
+        # as it needs a label for the end to jump to.
         self.in_expression_followed_by_block = True
-        cond = self.parse_expr()
+        condition = self.parse_expr()
         self.in_expression_followed_by_block = False
 
-        prev = self.block
+        while_condition_exit_block = self.block
 
-        then, then_offset = self.new_block('then')
+        while_body_entry_block, while_body_entry_offset = self.new_block('then')
         body = self.parse_block()
 
-        then.terminator = Code(Op.JMP, args=(whyle_offset,))
-        end, end_offset = self.new_block('end')
+        while_body_exit_block = self.block
+        if while_body_exit_block.terminator is None:
+            while_body_exit_block.terminator = Code(Op.JMP, args=(while_condition_entry_offset, ), token=while_token)
 
-        prev.terminator = Code(Op.BR, args=(then_offset, end_offset), refs=(cond, ))
+        end, end_offset = self.new_block('end')
+        while_condition_exit_block.terminator = Code(Op.BR, args=(while_body_entry_offset, end_offset), refs=(condition, ), token=while_token)
+
+        return body
 
     def parse_return(self):
-        _ = self.next(expect='return')
+        return_token = self.next(expect='return')
         args = []
         while True:
             arg = self.parse_expr()
             args.append(arg)
             if not self.next_if(expect=','):
                 break
-        self.block.terminator = Code(Op.RET, refs=tuple(args))
+        self.block.terminator = Code(Op.RET, refs=tuple(args), token=return_token)
 
     def parse_block(self):
         _ = self.next(expect='{')
@@ -342,10 +365,10 @@ class Parser(TokenStream):
         i = 0
         while not self.next_if(expect=')'):
             field = self.next(expect='ident').data.decode()
-            self.next(expect=':')
+            field_token = self.next(expect=':')
             type = self.next(expect='ident').data.decode()
             self.next_if(expect=',')
-            params[field] = (type, self.push(Code(Op.PARAM, args=(type, ), dest=field)), i)
+            params[field] = (type, self.push(Code(Op.PARAM, args=(type, ), dest=field, token=field_token)), i)
             i += 1
 
         returns = []
@@ -363,7 +386,7 @@ class Parser(TokenStream):
         self.parse_block()
 
         if self.block.terminator is None:
-            self.block.terminator = Code(Op.RET)
+            self.block.terminator = Code(Op.RET, token=self.peek())
         self.function = previous
         return 'func'
 
@@ -371,14 +394,14 @@ class Parser(TokenStream):
         name = self.next(expect='ident')
         func = name.data.decode()
 
-        self.next(expect='(')
+        call_token = self.next(expect='(')
         args = []
         while not self.next_if(expect=')'):
             arg = self.parse_expr()
             args.append(arg)
             self.next_if(',')
 
-        call = self.push(Code(Op.CALL, dest=self.implicit_name(), args=(func, ), refs=tuple(args)))
+        call = self.push(Code(Op.CALL, dest=self.implicit_name(), args=(func, ), refs=tuple(args), token=call_token))
         return call
 
     def parse_struct(self, name: str):
@@ -399,24 +422,24 @@ class Parser(TokenStream):
 
     def parse_initializer(self):
         name = self.next(expect='ident')
-        _ = self.next(expect='{')
+        init_token = self.next(expect='{')
 
         i = 0
         args = []
         while not self.next_if(expect='}'):
             field_name = self.next(expect='ident').data.decode()
-            self.next(expect='=')
+            assign_token = self.next(expect='=')
             field_arg = self.parse_expr()
             self.next_if(expect=',')
-            add = self.push(Code(Op.FIELD, dest=self.implicit_name(), refs=(field_arg,), args=(None, field_name, i)))
+            add = self.push(Code(Op.FIELD, dest=self.implicit_name(), refs=(field_arg,), args=(None, field_name, i), token=assign_token))
             args.append(add)
             i += 1
 
-        stuff = self.push(Code(Op.INIT, args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args)))
+        stuff = self.push(Code(Op.INIT, args=(name.data.decode(), ), dest=self.implicit_name(), refs=tuple(args), token=init_token))
         return stuff
 
     def parse_compiler_attribute(self):
-        _ = self.next(expect='@')
+        attribute_token = self.next(expect='@')
         attribute = self.next(expect='ident')
         if attribute.data.decode() == 'syscall':
             self.next(expect='(')
@@ -427,20 +450,20 @@ class Parser(TokenStream):
                 args.append(arg)
                 self.next_if(',')
 
-            return self.push(Code(Op.SYSCALL, dest=self.implicit_name(), refs=tuple(args)))
+            return self.push(Code(Op.SYSCALL, dest=self.implicit_name(), refs=tuple(args), token=attribute_token))
         elif attribute.data.decode() == 'asm':
             self.next(expect='(')
             data = self.parse_string()
             self.next(expect=')')
-            return self.push(Code(Op.ASM, dest=self.implicit_name(), refs=(data, )))
+            return self.push(Code(Op.ASM, dest=self.implicit_name(), refs=(data, ), token=attribute_token))
         else:
             assert False, "Not implemented"
 
     def parse_indexing(self, target, is_lvl=False):
-        _ = self.next(expect='[')
+        index_token = self.next(expect='[')
         expr = self.parse_expr()
         _ = self.next(expect=']')
-        return self.push(Code(Op.INDEX, dest=self.implicit_name(), refs=(target, expr), args=(is_lvl, )))
+        return self.push(Code(Op.INDEX, dest=self.implicit_name(), refs=(target, expr), args=(is_lvl, ), token=index_token))
 
     def parse_expr(self, precedence=0):
         left = self.parse_prefix()
@@ -464,17 +487,17 @@ class Parser(TokenStream):
             expr = self.parse_expr(prec)
             match op.kind:
                 case '+':
-                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '-':
-                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '*':
-                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '.':
-                    return self.push(Code(Op.DOT, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.DOT, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '&':
-                    return self.push(Code(Op.REF, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.REF, dest=self.implicit_name(), refs=(expr,), token=op))
                 case 'not':
-                    return self.push(Code(Op.NOT, dest=self.implicit_name(), refs=(expr,)))
+                    return self.push(Code(Op.NOT, dest=self.implicit_name(), refs=(expr,), token=op))
                 case _:
                     raise RuntimeError(f'Unknown unary operator {op.kind}')
         elif self.peek_if('number'):
@@ -508,6 +531,8 @@ class Parser(TokenStream):
             return self.parse_real()
         elif t.kind == 'string':
             return self.parse_string()
+        else:
+            raise RuntimeError(f'Unknown token {t.kind}')
 
     def parse_infix(self, left):
         if op := self.next_if_any(*Parser.BINARY_OPERATOR):
@@ -515,29 +540,29 @@ class Parser(TokenStream):
             right = self.parse_expr(prec)
             match op.kind:
                 case '+':
-                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.ADD, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '-':
-                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '*':
-                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '/':
-                    return self.push(Code(Op.DIV, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.DIV, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '%':
-                    return self.push(Code(Op.MOD, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.MOD, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '==':
-                    return self.push(Code(Op.EQ, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.EQ, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '!=':
-                    return self.push(Code(Op.NEQ, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.NEQ, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '<':
-                    return self.push(Code(Op.LT, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.LT, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '>':
-                    return self.push(Code(Op.GT, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.GT, dest=self.implicit_name(), refs=(left, right), token=op))
                 case 'and':
-                    return self.push(Code(Op.AND, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.AND, dest=self.implicit_name(), refs=(left, right), token=op))
                 case 'or':
-                    return self.push(Code(Op.OR, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.OR, dest=self.implicit_name(), refs=(left, right), token=op))
                 case '.':
-                    return self.push(Code(Op.ACCESS, dest=self.implicit_name(), refs=(left, right)))
+                    return self.push(Code(Op.ACCESS, dest=self.implicit_name(), refs=(left, right), token=op))
                 case _:
                     raise RuntimeError(f'Unknown binary operator {op.kind}')
         elif op := self.peek_if('['):
@@ -548,9 +573,9 @@ class Parser(TokenStream):
             raise RuntimeError(f'Unknown token {self.peek()}')
 
     def parse_cast(self, left):
-        _ = self.next(expect='as')
+        token = self.next(expect='as')
         t = self.next(expect='ident').data.decode()
-        return self.push(Code(Op.AS, args=(t, ), dest=self.implicit_name(), refs=(left,)))
+        return self.push(Code(Op.AS, args=(t, ), dest=self.implicit_name(), refs=(left,), token=token))
 
     def parse_number(self):
         token = self.next(expect='number')

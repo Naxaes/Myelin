@@ -75,7 +75,7 @@ class PrimitiveType(Type):
         return False
 
     def __repr__(self):
-        return f"{self.qualifier_str()} {self.name}[{self.size}]".strip()
+        return f"{self.qualifier_str()} {self.name}{self.size}".strip()
 
 
 class LiteralType(Type):

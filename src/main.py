@@ -5,7 +5,7 @@ from parser import Parser
 from ssa import check_if_in_ssa_form
 from type_checker import TypeChecker
 from x86_64_generator import X86_64_Generator
-from ir import parse, remove_unused_functions
+from ir import parse, validate_ir, remove_unused_functions
 from assembler import make_macho_executable
 
 from pathlib import Path
@@ -14,7 +14,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('file', help='Run just type checking', default=True)
+    parser.add_argument('file', help='Source code file', default=True)
     parser.add_argument('--check', help='Run semantic analysis', action='store_true')
     parser.add_argument('--run', help='Run the executable', action='store_true')
     parser.add_argument('--is-ir', help='Assume the file is in ir format', action='store_true')
@@ -29,6 +29,7 @@ def main():
     else:
         tokens = Lexer.lex(source)
         module = Parser.parse_module(tokens, path.name)
+        validate_ir(module)
 
     types = TypeChecker.check(module)
     if not check_if_in_ssa_form(module):

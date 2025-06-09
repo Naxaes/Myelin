@@ -3,3 +3,8 @@ nasm -f macho64 -g -F dwarf -w+all src/build/cat.s -o src/build/cat.o && ld -mac
 
 # Display executable
 otool -hlxvVjd src/build/cat
+
+# LLdb
+lldb
+process launch --stop-at-entry
+settings set target.x86-disassembly-flavor intel

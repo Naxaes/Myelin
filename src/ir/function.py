@@ -52,6 +52,9 @@ class Function:
         self.blocks.append(block)
         return id
 
+    def entry(self) -> Block:
+        return self.blocks[0]
+
     def create_cfg(self) -> tuple[dict[str, list[Block]], dict[str, list[Block]]]:
         predecessors: dict[str, list[Block]] = {b.label: [] for b in self.blocks}
         successors: dict[str, list[Block]] = {b.label: [] for b in self.blocks}

@@ -324,9 +324,10 @@ class Lexer:
 
 
 class TokenStream:
-    def __init__(self, tokens):
+    def __init__(self, tokens, name):
         self.__current = 0
         self.__tokens = tokens
+        self.__name = name
 
     def previous(self):
         if self.__current == 0:
@@ -361,7 +362,7 @@ class TokenStream:
     def next(self, expect=None) -> Token:
         token = self.peek()
         if expect and expect != token.kind:
-            raise RuntimeError(f'Expected {expect}, got unexpected token {token}')
+            raise RuntimeError(f'{self.__name}:{token.begin.row}:{token.begin.col}: Expected {expect}, got unexpected token {token}')
         if token.kind != 'eof':
             self.__current += 1
         return token

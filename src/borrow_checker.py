@@ -1,4 +1,4 @@
-from ir import Op
+from ir import Op, Block, Function
 from type import *
 
 
@@ -11,14 +11,14 @@ class State(Enum):
     EXCLUSIVELY_BORROWED = auto()
 
 
-
-
 class BorrowChecker:
     def __init__(self, functions, data, constants, user_types):
         self.functions = functions
         self.data = data
         self.constants = constants
         self.user_types = user_types
+        self.state = {}
+        self.successors = {}
 
     @staticmethod
     def check(module):
@@ -29,11 +29,15 @@ class BorrowChecker:
         self = BorrowChecker(functions, data, constants, user_types)
         return self.check_()
 
+    def has_later_use(self, block, offset, var):
+        for code in block.instructions[offset:]:
+            if var in code.refs:
+                return True
+        return False
 
-    def check_block(self, block):
+    def check_block(self, block, state):
         """Check a single block for borrow errors"""
-        state = { }
-        for code in block.instructions:
+        for i, code in enumerate(block.instructions):
             if code.op == Op.MOVE:
                 dst = code.dest
                 src = code.refs[0]
@@ -61,9 +65,9 @@ class BorrowChecker:
 
                 # Check if the source is in a state that doesn't allow shared borrowing
                 if state[src][0] == State.MOVED:
-                    return f"'{dst}' cannot shared borrow moved value '{src}' after it was moved from '{state[src][1]}'"
+                    return f"'{dst}' cannot share borrow '{src}'; '{src}' was moved to '{state[src][1]}'"
                 if state[src][0] == State.EXCLUSIVELY_BORROWED:
-                    return f"'{dst}' cannot shared borrow '{src}' while already exclusively borrowed by '{state[src][1]}'"
+                    return f"'{dst}' cannot share borrow '{src}'; '{src}' is exclusively borrowed from '{state[src][1]}'"
 
                 state[dst] = (State.SHARED_BORROWING, src)
                 state[src] = (State.SHARED_BORROWED,  dst)
@@ -72,11 +76,11 @@ class BorrowChecker:
                 src = code.refs[0]
 
                 # Check if the source is in a state that doesn't allow immutable borrowing
-                if state[src][0] == State.MOVED:
+                if state[src][0] == State.MOVED and self.has_later_use(block, i+1, state[src][1]):
                     return f"'{dst}' cannot mutably borrow moved value '{src}'; '{src}' was moved from '{state[src][1]}'"
-                if state[src][0] == State.SHARED_BORROWED:
+                if state[src][0] == State.SHARED_BORROWED and self.has_later_use(block, i+1, state[src][1]):
                     return f"'{dst}' cannot mutably borrow '{src}'; '{src}' already shared borrowed by '{state[src][1]}'"
-                if state[src][0] == State.EXCLUSIVELY_BORROWED:
+                if state[src][0] == State.EXCLUSIVELY_BORROWED and self.has_later_use(block, i+1, state[src][1]):
                     return f"'{dst}' cannot mutably borrow '{src}'; '{src}' already exclusively borrowed by '{state[src][1]}'"
 
                 state[dst] = (State.EXCLUSIVELY_BORROWING, src)
@@ -88,18 +92,29 @@ class BorrowChecker:
                             return f"Cannot use moved value '{ref}', it was moved to '{state[ref][1]}'"
                 state[code.dest] = (State.OWNING, None)
 
-
         return None
+
+    def dfs(self, name: str, block: Block, state):
+        error = self.check_block(block, state)
+        if error:
+            raise RuntimeError(f"Error in function '{name}' at block '{block.label}': {error}")
+
+        for neighbour in self.successors[block.label]:
+            new_state = state.copy()
+            self.dfs(name, neighbour, new_state)
 
     def check_(self):
         """Borrow checking"""
+        # Assuming DAG for now.
         for name, function in self.functions.items():
-            state = { }
-            for block, code in function.code():
-                error = self.check_block(block)
-                if error:
-                    return f"Error in function '{name}' at block {block.label}: {error}"
-
+            if isinstance(function, Function):
+                self.successors = function.successors
+                entry = function.entry()
+                state = {}
+                try:
+                    self.dfs(name, entry, state)
+                except RuntimeError as e:
+                    return str(e)
         return None
 
 
