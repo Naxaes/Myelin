@@ -86,6 +86,98 @@ class Code:
     def target(self): return self.refs[0]
     def type(self): return self.args[0] if self.args else None
 
+    def to_text(self) -> str:
+        match self.op:
+            case Op.NOP:
+                return f'nop'
+            case Op.ADD:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.SUB:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.MUL:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.DIV:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.MOD:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.AND:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.OR:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.NOT:
+                return f'not %%{self.refs[0]}'
+            case Op.EQ:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.NEQ:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.GT:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.LT:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.GTE:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.LTE:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.DOT:
+                return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
+            case Op.AS:
+                return f'{self.dest} := %{self.refs[0]} as {self.args[0]}'
+            case Op.INDEX:
+                return f'{self.dest} := %{self.refs[0]}[%{self.refs[1]}]'
+            case Op.ASSIGN:
+                return f'%{self.refs[0]} = %{self.refs[1]}'
+            case Op.GET:
+                return f'get'
+            case Op.LIT:
+                return f'{self.dest} : {self.args[0]} = {self.args[2]}'
+            case Op.BRW:
+                return f'brw %{self.refs[0]}'
+            case Op.REF:
+                return f'ref %{self.refs[0]}'
+            case Op.MOVE:
+                return f'move %{self.refs[0]}'
+            case Op.COPY:
+                return f'copy %{self.refs[0]}'
+            case Op.PARAM:
+                return f'{self.dest}: {self.args[0]}'
+            case Op.FIELD:
+                return f'{self.dest} :: .{self.args[1]} = %{self.refs[0]}'
+            case Op.INIT:
+                return f'{self.dest} := {self.args[0]}{{{", ".join(f"%{i}" for i in self.refs)}}}'
+            case Op.ACCESS:
+                return f'{self.dest} := %{self.refs[0]}.%{self.refs[1]}'
+            case Op.RET:
+                return f'ret {", ".join(f"%{i}" for i in self.refs)}'
+            case Op.PRINT:
+                return f'print %{self.refs[0]}'
+            case Op.CALL:
+                return f'{self.dest} = {self.args[0]}({", ".join(f"%{i}" for i in self.refs)})'
+            case Op.ALLOC:
+                return f'alloc %{self.refs[0]}'
+            case Op.FREE:
+                return f'free %{self.refs[0]}'
+            case Op.SYSCALL:
+                return f'syscall %{self.refs[0]}'
+            case Op.DECL:
+                return f'{self.dest} := %{self.refs[0]}'
+            case Op.MULTIDECL:
+                return f'{", ".join(str(i) for i in self.args)} := {", ".join(f"%{i}" for i in self.refs)}'
+            case Op.ASM:
+                return f'asm %{self.refs[0]}'
+            case Op.BR:
+                return f'if %{self.refs[0]} then ${self.args[0]} else ${self.args[1]}'
+            case Op.JMP:
+                return f'jmp ${self.args[0]}'
+            case Op.SET:
+                return f'set %{self.refs[0]}'
+            case Op._:
+                return f'_ %{self.refs[0]}'
+            case Op.LABEL:
+                return f'label %{self.refs[0]}'
+            case _:
+                raise Exception(f'Unknown op: {self.op}')
+
+
 def c(**kwargs):
     op = kwargs.pop('op')
     if isinstance(op, str):

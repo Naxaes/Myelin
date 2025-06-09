@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+from ir.passes import generate_graph_viz
 from lexer import Lexer
 from parser import Parser
 from ssa import check_if_in_ssa_form
@@ -75,9 +75,12 @@ def main():
     # print(module)
 
     if args.check:
-        return  # Exit after type checking
+        return None
 
     remove_unused_functions(module)
+    graph_vis_source = generate_graph_viz(module)
+    with open(f'build/{path.stem}.dot', 'wb') as file:
+        file.write(graph_vis_source.encode())
 
     code, data = X86_64_Generator.generate(module, types)
     machine_code, readable_code = make_macho_executable(path.stem, code, data)
@@ -87,9 +90,9 @@ def main():
 
     if args.run:
         process = subprocess.run([f'build/{path.stem}'])
-        print(f'Exit status: {process.returncode}')
+        exit(process.returncode)
 
-
+    return None
 
 
 if __name__ == '__main__':

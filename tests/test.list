@@ -3,5 +3,12 @@ PYTHONPATH=src python3 src/main.py examples/fibonacci.sf  --run
 PYTHONPATH=src python3 src/main.py examples/main.sf       --run
 PYTHONPATH=src python3 src/main.py examples/macos.sf      --run
 PYTHONPATH=src python3 src/main.py examples/core.sf       --run
+
 PYTHONPATH=src python3 src/main.py examples/main.ir       --check --is-ir
 PYTHONPATH=src python3 -m unittest discover tests -q -b 2> /dev/null
+
+cat build/struct.dot
+cat build/fibonacci.dot
+cat build/main.dot
+cat build/macos.dot
+cat build/core.dot

@@ -1,7 +1,26 @@
+from idlelib.window import add_windows_to_menu
 from typing import Union, Dict
 
 from lexer import Lexer, Token, TokenStream
 from ir import Op, Function, Builtin, Block, Code, Module
+
+
+class Scope:
+    def __init__(self, parent: 'Scope' = None):
+        self.parent = parent
+        self.decls  = []
+
+    def add(self, decl: str):
+        self.decls.append(decl)
+
+    def find(self, name):
+        scope = self
+        while scope:
+            for decl in scope.decls:
+                if decl == name:
+                    return decl
+            scope = scope.parent
+        return None
 
 
 class Parser(TokenStream):
@@ -108,6 +127,8 @@ class Parser(TokenStream):
         self.types = {}
         self.imports = {}
         self.in_expression_followed_by_block = False
+        self.scopes = []
+        self.name_id = -1
 
     def new_function(self, name, is_module=False, is_main=False):
         function = Function(name, is_module=is_module, is_main=is_main)
@@ -118,9 +139,15 @@ class Parser(TokenStream):
         return function, block
 
     def new_block(self, label):
-        block = Block( f'bb{len(self.function.blocks)}_' + label)
-        offset = self.function.add(block)
-        return block, offset
+        c = len(self.function.blocks)
+        label = f'bb{c}_' + label
+        if c > 0 and len(self.block.instructions) == 0:
+            self.block.label = label
+            return self.block, c-1
+        else:
+            block = Block(label)
+            offset = self.function.add(block)
+            return block, offset
 
     def push(self, instruction):
         return self.block.add(instruction)
@@ -129,12 +156,20 @@ class Parser(TokenStream):
     def block(self):
         return self.function.blocks[-1]
 
+    @property
+    def scope(self):
+        return self.scopes[-1]
+
     def parse_module_as_import(self, name, imports):
         self.imports = imports
+        prev_id, self.name_id = self.name_id, 0
         self.new_function(name, is_module=True)
+        self.scopes.append(Scope())
         while self.has_more():
             self.parse_stmt()
+        self.scopes.pop()
         assert self.block.terminator is None
+        self.name_id = prev_id
         self.block.terminator = Code(Op.RET, token=self.peek())
         return self.functions, self.data, self.constants, self.types
 
@@ -142,8 +177,11 @@ class Parser(TokenStream):
     def parse_module(tokens, name):
         self = Parser(tokens, name)
         self.new_function(name, is_module=True, is_main=True)
+        self.scopes.append(Scope())
         while self.has_more():
             self.parse_stmt()
+        self.scopes.pop()
+        assert len(self.scopes) == 0
         assert self.block.terminator is None
         self.block.terminator = Code(Op.RET, token=self.peek())
         return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
@@ -219,6 +257,13 @@ class Parser(TokenStream):
         while self.next_if(','):
             names.append(self.next(expect='ident'))
 
+        for name in names:
+            decl = name.data.decode()
+            if prev := self.scope.find(decl):
+                raise RuntimeError(f'Duplicate declaration for {prev}')
+            else:
+                self.scope.add(decl)
+
         if self.next_if(':'):
             type = self.parse_type(names)
             if self.next_if('='):
@@ -262,7 +307,7 @@ class Parser(TokenStream):
         branch_block = self.block
 
         # The 'then' block starts the if-body.
-        then_block, then_offset = self.new_block('then')
+        then_block, then_offset = self.new_block('if_then')
 
         # The current block ends the if-body, and needs to jump
         # to the 'end', which is over the 'else' body or the next block.
@@ -270,16 +315,16 @@ class Parser(TokenStream):
         end_of_if_body = self.block
 
         if self.next_if(expect='else'):
-            else_block, else_offset = self.new_block('else')
+            else_block, else_offset = self.new_block('if_else')
             branch_block.terminator = Code(Op.BR, args=(then_offset, else_offset), refs=(condition, ), token=if_token)
 
             else_body = self.parse_block()
 
             end_of_else_block = self.block
-            end, end_offset = self.new_block('end')
+            end, end_offset = self.new_block('if_end')
             end_of_else_block.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
         else:
-            end, end_offset = self.new_block('end')
+            end, end_offset = self.new_block('if-end')
             branch_block.terminator = Code(Op.BR, args=(then_offset, end_offset), refs=(condition, ), token=if_token)
 
         end_of_if_body.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
@@ -303,14 +348,14 @@ class Parser(TokenStream):
 
         while_condition_exit_block = self.block
 
-        while_body_entry_block, while_body_entry_offset = self.new_block('then')
+        while_body_entry_block, while_body_entry_offset = self.new_block('while_then')
         body = self.parse_block()
 
         while_body_exit_block = self.block
         if while_body_exit_block.terminator is None:
             while_body_exit_block.terminator = Code(Op.JMP, args=(while_condition_entry_offset, ), token=while_token)
 
-        end, end_offset = self.new_block('end')
+        end, end_offset = self.new_block('while_end')
         while_condition_exit_block.terminator = Code(Op.BR, args=(while_body_entry_offset, end_offset), refs=(condition, ), token=while_token)
 
         return body
@@ -327,10 +372,11 @@ class Parser(TokenStream):
 
     def parse_block(self):
         _ = self.next(expect='{')
+        self.scopes.append(Scope(self.scope))
         stmt = None
         while not self.peek_if_any('}', 'eof'):
             stmt = self.parse_stmt()
-
+        self.scopes.pop()
         self.next(expect='}')
         return stmt
 
@@ -359,8 +405,10 @@ class Parser(TokenStream):
 
     def parse_func_decl(self, name):
         previous = self.function
+        prev_id, self.name_id = self.name_id, 0
         self.new_function(name.data.decode())
 
+        self.scopes.append(Scope(self.scope))
         params = {}
         i = 0
         while not self.next_if(expect=')'):
@@ -383,7 +431,12 @@ class Parser(TokenStream):
         self.function.params = params
         self.function.returns = returns
 
+        self.scopes.append(Scope(self.scope))
         self.parse_block()
+        self.scopes.pop()
+
+        self.scopes.pop()
+        self.name_id = prev_id
 
         if self.block.terminator is None:
             self.block.terminator = Code(Op.RET, token=self.peek())
@@ -609,10 +662,9 @@ class Parser(TokenStream):
         name = self.next(expect='ident').data.decode()
         return name  # self.block.declarations[name] if name in self.block.declarations else name
 
-    ID = -1
     def implicit_name(self):
-        Parser.ID += 1
-        return f'var_{Parser.ID}'
+        self.name_id += 1
+        return f'%{self.name_id}'
 
 
 
