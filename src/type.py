@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Set, Dict
 from enum import Enum, auto
 
-
+from ir import Op
 
 
 # --- Qualifiers ---
@@ -22,11 +22,13 @@ class Type(ABC):
         pass
 
     def __eq__(self, other):
-        if not isinstance(other, Type):
-            return False
         return self.is_equal(other)
 
+    def operation(self, op: Op, other: 'Type') -> Optional['Type']:
+        raise NotImplementedError()
+
     def is_equal(self, other: 'Type') -> bool:
+        assert isinstance(other, Type), f'{other} is not a Type'
         return (
             self.name == other.name and
             self.size == other.size and
@@ -40,39 +42,89 @@ class Type(ABC):
         """
         Whether this type is equal to or a child of `other`
         """
+        if isinstance(other, InferredType):
+            return True
         return self.is_equal(other)
 
-    def can_coerce_to(self, other: 'Type') -> bool:
-        """
-        Whether this type can safely be coerced to the other type.
-        """
-        return self.is_subtype_of(other)
+
+class InferredType(Type):
+    def __init__(self):
+        super().__init__('inferred', 0)
+
+    def is_subtype_of(self, other: Type) -> bool:
+        if isinstance(other, InferredType):
+            return False
+        return True
+
+    def __repr__(self):
+        return f'<inferred>'
+
 
 # --- Primitive Type ---
 class PrimitiveType(Type):
     SAFE_COERCIONS: Dict[str, Set[str]] = {
-        'u8':  {'u16', 'u32', 'u64', 'f32', 'f64', 'i16', 'i32', 'i64'},
-        'i8':  {'i16', 'i32', 'i64', 'f32', 'f64'},
-        'u16': {'u32', 'u64', 'f32', 'f64', 'i32', 'i64'},
-        'i16': {'i32', 'i64', 'f32', 'f64'},
-        'u32': {'u64', 'f64', 'i64'},
-        'i32': {'f64', 'i64'},
-        'f32': {'f64'},
-        'i64': { },
-        'u64': { },
-        'f64': { },
+        'bool':     { 'char',   'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'i8' 'i16', 'i32', 'i64', 'int' },
+        'char':     {   'u8',  'u16', 'u32', 'u64', 'f32', 'f64', 'i8' 'i16', 'i32', 'i64', 'int' },
+        'u8':       {  'u16',  'u32', 'u64', 'f32', 'f64', 'i16', 'i32', 'i64', 'int'},
+        'i8':       {  'i16',  'i32', 'i64', 'int', 'f32', 'f64'},
+        'u16':      {  'u32',  'u64', 'f32', 'f64', 'i32', 'i64', 'int'},
+        'i16':      {  'i32',  'i64', 'int', 'f32', 'f64'},
+        'u32':      {  'u64',  'f64', 'i64', 'int'},
+        'i32':      {  'f64',  'i64', 'int'},
+        'f32':      {  'f64'},
+        'i64':      { },
+        'int':      { },
+        'u64':      { },
+        'f64':      { },
     }
 
     def __init__(self, name: str, size: int, qualifiers: Optional[Set[Qualifier]] = None):
         super().__init__(name, size, qualifiers)
 
-    def can_coerce_to(self, other: 'Type') -> bool:
+    def peer_resolution(self, other: Type) -> Optional[Type]:
+        if other.name in PrimitiveType.SAFE_COERCIONS.get(self.name, set()):
+            return other
+        elif self.name in PrimitiveType.SAFE_COERCIONS.get(other.name, set()):
+            return self
+        else:
+            return self if self.is_equal(other) else None
+
+    def operation(self, op: Op, other: Type) -> Optional[Type]:
+        is_commutative = False
+        match op:
+            case Op.ADD|Op.SUB|Op.MUL:
+                if t := self.peer_resolution(other):
+                    return t
+                is_commutative = True
+            case Op.DIV|Op.MOD:
+                if t := self.peer_resolution(other):
+                    return t
+            case Op.EQ|Op.NEQ:
+                if t := self.peer_resolution(other):
+                    return PrimitiveType(name='bool', size=1)
+                is_commutative = True
+            case Op.AND|Op.OR:
+                if t := self.peer_resolution(other):
+                    if t.name == 'bool':
+                        return t
+                is_commutative = True
+            case Op.GT|Op.LT|Op.GTE|Op.LTE:
+                if t := self.peer_resolution(other):
+                    return t
+            case _:
+                raise RuntimeError(f'Unknown binary operator {op}')
+
+        # if is_commutative:
+        #     return other.operation(op, self)
+        raise RuntimeError(f"invalid binary operator '{op}' for {self} and {other}")
+
+    def is_subtype_of(self, other: 'Type') -> bool:
         if isinstance(other, PrimitiveType):
             if self.name == other.name:
                 return True
             allowed = PrimitiveType.SAFE_COERCIONS.get(self.name, set())
             return other.name in allowed
-        return False
+        return isinstance(other, InferredType)
 
     def __repr__(self):
         return f"{self.qualifier_str()} {self.name}{self.size}".strip()
@@ -92,11 +144,6 @@ class LiteralType(Type):
                 return True
         return self.is_equal(other)
 
-    def can_coerce_to(self, other: 'Type') -> bool:
-        if isinstance(other, PrimitiveType):
-            if self.name == other.name or other.name == 'int':
-                return True
-        return self.is_equal(other)
 
     def __repr__(self):
         return f"{self.name}".strip()
@@ -107,21 +154,33 @@ class PointerType(Type):
         super().__init__(name=f"{pointee.name}*", size=8, qualifiers=qualifiers)
         self.pointee = pointee
 
-    def can_coerce_to(self, target: 'Type') -> bool:
-        if not isinstance(target, PointerType):
-            return False
+    def operation(self, op: Op, other: Type) -> Optional[Type]:
+        match op:
+            case Op.ADD|Op.SUB:
+                if isinstance(other, PrimitiveType) or isinstance(other, LiteralType):
+                    return self
+            case Op.EQ|Op.NEQ:
+                if isinstance(other, PrimitiveType) or isinstance(other, LiteralType):
+                    return self
+            case _:
+                raise RuntimeError(f'Unknown binary operator {op}')
+        raise RuntimeError(f'invalid binary operator {op} for {self}')
+
+    def is_subtype_of(self, other: 'Type') -> bool:
+        if not isinstance(other, PointerType):
+            return True if isinstance(other, InferredType) else False
 
         # TODO: Hack for now.
-        if self.name == 'void*':
+        if self.name == 'void*' or other.name == 'void*':
             return True
 
         # 1. Same base types, allowing qualifier widening (e.g., to const)
-        if self.pointee.is_equal(target.pointee):
-            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in target.qualifiers
+        if self.pointee.is_equal(other.pointee):
+            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in other.qualifiers
 
         # 2. Subtype relationship between pointed types
-        if self.pointee.is_subtype_of(target.pointee):
-            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in target.qualifiers
+        if self.pointee.is_subtype_of(other.pointee):
+            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in other.qualifiers
 
         return False
 
@@ -134,7 +193,7 @@ class ReferenceType(Type):
         super().__init__(name=f"{pointee.name}&", size=8, qualifiers=qualifiers)
         self.pointee = pointee
 
-    def can_coerce_to(self, target: 'ReferenceType') -> bool:
+    def is_subtype_of(self, target: 'ReferenceType') -> bool:
         if not isinstance(target, PointerType):
             return False
 
@@ -165,7 +224,9 @@ class ArrayType(Type):
             raise TypeError(f'No attribute {attribute} on {self}')
 
     def is_subtype_of(self, other: 'Type') -> bool:
-        if isinstance(other, PointerType):
+        if isinstance(other, InferredType):
+            return True
+        elif isinstance(other, PointerType):
             return self.element_type.is_equal(other.pointee)
         return self.is_equal(other)
 
@@ -218,7 +279,7 @@ class OptionalType(Type):
         super().__init__(name=f"{base_type.name}?", size=base_type.size + 1)
         self.base_type = base_type
 
-    def can_coerce_to(self, other: 'Type') -> bool:
+    def is_subtype_of(self, other: 'Type') -> bool:
         return self.is_equal(other) or self.base_type.is_equal(other)
 
     def __repr__(self):
@@ -252,7 +313,7 @@ class InstantiatedGenericType(Type):
 
 # --- Type Registry ---
 class TypeRegistry:
-    def __init__(self):
+    def __init__(self, data=None):
         self._registry = {}
 
     def intern(self, t: Type) -> Type:

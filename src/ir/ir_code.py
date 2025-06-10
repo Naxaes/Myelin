@@ -80,7 +80,7 @@ class Code:
 
     def lhs(self): return self.refs[0]
     def rhs(self): return self.refs[1]
-    def expr(self): return self.refs[1]
+    def expr(self): return self.refs[0]
     def obj(self): return self.refs[0]
     def attr(self): return self.refs[1]
     def target(self): return self.refs[0]

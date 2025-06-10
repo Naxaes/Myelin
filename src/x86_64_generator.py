@@ -86,7 +86,8 @@ class X86_64_Generator:
                     elif code.op == Op.REF:
                         self.generate_dereference(function, block, code)
                     elif code.op == Op.AS:
-                        src = block.instructions[code.refs[0]].dest
+                        target = code.refs[0]
+                        src = target if isinstance(target, str) else block.instructions[target].dest
                         self.mapping[code.dest] = self.peek_reg(src)
                     elif code.op == Op.ACCESS:
                         self.generate_get(function, block, code)
@@ -426,7 +427,7 @@ class X86_64_Generator:
         reg = self.set_reg(code.dest)
         t, index, data = code.args
         t = self.type_of(function, code)
-        if t.name == 'str' or t.name == 'byte*' or t.name.startswith('byte['):
+        if t.name == 'str' or t.name == 'char*' or t.name.startswith('char['):
             self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {t} = data_{index} ("{data}")')
         elif t.name == 'real':
             self.add_code('mov', reg, int(data), comment=f'{code.dest} : {t} = {data}')

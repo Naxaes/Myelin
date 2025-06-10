@@ -38,7 +38,7 @@ write: (fd: int, buffer: ptr, count: int) -> int {
 # Returns errno in rax on failure, or the file descriptor otherwise.
 # Clobbers rdx
 open: (path: str, flags: int) -> int {
-    status: int = @syscall(SYS_OPEN, path, flags, 292)
+    status: int = @syscall(SYS_OPEN, path, flags, 292) as int
     @asm("mov rax, rdx\nmov rdi, 0\ncmovc rax, rdi\nret\n")
     return 0  # This line is never reached, but it helps the compiler understand the function's return type.
 }

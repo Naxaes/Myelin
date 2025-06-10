@@ -119,7 +119,7 @@ PYTHONPATH=src python3 -m unittest discover tests -q -b 2> /dev/null
 :b shell 20
 cat build/struct.dot
 :i returncode 0
-:b stdout 10281
+:b stdout 10335
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
@@ -178,10 +178,10 @@ digraph {
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 = write(%STDOUT, %message, %size)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 := %message as ptr</TD></TR><TR><TD ALIGN="LEFT">03│ v2 = write(%STDOUT, %2, %size)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
-                        <TR><TD ALIGN="LEFT">ret %2</TD></TR>
+                        <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
 		print__bb0_entry -> print
@@ -239,7 +239,7 @@ digraph {
                         <TR><TD ALIGN="LEFT">00│ v30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ v31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ v32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ v33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ v35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ v36 = write(%STDOUT, %2, %5)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
-                        <TR><TD ALIGN="LEFT">ret </TD></TR>
+                        <TR><TD ALIGN="LEFT">ret %6</TD></TR>
                     </TABLE>
                 > shape=plaintext]
 		print_int__bb4_while_end -> print_int
@@ -281,7 +281,7 @@ digraph {
 :b shell 23
 cat build/fibonacci.dot
 :i returncode 0
-:b stdout 8913
+:b stdout 8915
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
@@ -401,7 +401,7 @@ digraph {
                         <TR><TD ALIGN="LEFT">00│ v30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ v31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ v32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ v33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ v35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ v36 = write(%STDOUT, %2, %5)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
-                        <TR><TD ALIGN="LEFT">ret </TD></TR>
+                        <TR><TD ALIGN="LEFT">ret %6</TD></TR>
                     </TABLE>
                 > shape=plaintext]
 		print_int__bb4_while_end -> print_int
@@ -413,7 +413,7 @@ digraph {
 :b shell 18
 cat build/main.dot
 :i returncode 0
-:b stdout 9251
+:b stdout 9303
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
@@ -534,10 +534,10 @@ digraph {
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 = write(%STDOUT, %message, %size)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 := %message as ptr</TD></TR><TR><TD ALIGN="LEFT">03│ v2 = write(%STDOUT, %2, %size)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
-                        <TR><TD ALIGN="LEFT">ret %2</TD></TR>
+                        <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
 		print__bb0_entry -> print
