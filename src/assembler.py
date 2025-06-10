@@ -287,9 +287,11 @@ def make_macho_executable(output, code, data, generate_debug=False):
 
     # Code binary
     status = subprocess.run(['nasm', '-f', 'bin', '-w+all', '-o', f'build/{output}', f'build/{output}.s'], capture_output=True)
-    if status.returncode != 0: raise RuntimeError(f'Nasm failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
+    if status.returncode != 0:
+        raise RuntimeError(f'"{' '.join(status.args)}" failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
     status = subprocess.run(['chmod', '+x', f'build/{output}'], capture_output=True)
-    if status.returncode != 0: raise RuntimeError(f'Nasm failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
+    if status.returncode != 0:
+        raise RuntimeError(f'"{', '.join(status.args)}" failed with status code {status.args}:\n{status.stdout}\n{status.stderr}' )
     binary = open(f'build/{output}', 'rb').read()
 
     # Debug code

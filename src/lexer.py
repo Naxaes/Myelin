@@ -324,10 +324,48 @@ class Lexer:
 
 
 class TokenStream:
-    def __init__(self, tokens, name):
+    def __init__(self, source, tokens, name):
         self.__current = 0
+        self.__source = source
         self.__tokens = tokens
         self.__name = name
+
+    def surrounding_lines_of(self, token: Token) -> tuple[str, str, str]:
+        source = self.__source
+        idx = token.begin.index
+
+        def find_line_bounds(index: int) -> tuple[int, int]:
+            start = index
+            while start > 0 and source[start - 1] != '\n':
+                start -= 1
+            end = index
+            while end < len(source) and source[end] != '\n':
+                end += 1
+            return start, end
+
+        # Current line
+        curr_start, curr_end = find_line_bounds(idx)
+        current_line = source[curr_start:curr_end]
+
+        # Previous line
+        prev_line = ""
+        if curr_start > 0:
+            prev_end = curr_start - 1  # skip the newline
+            prev_start = prev_end
+            while prev_start > 0 and source[prev_start - 1] != '\n':
+                prev_start -= 1
+            prev_line = source[prev_start:prev_end]
+
+        # Next line
+        next_line = ""
+        if curr_end < len(source):
+            next_start = curr_end + 1 if source[curr_end] == '\n' else curr_end
+            next_end = next_start
+            while next_end < len(source) and source[next_end] != '\n':
+                next_end += 1
+            next_line = source[next_start:next_end]
+
+        return prev_line, current_line, next_line
 
     def previous(self):
         if self.__current == 0:

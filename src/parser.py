@@ -1,4 +1,4 @@
-from idlelib.window import add_windows_to_menu
+import math
 from typing import Union, Dict
 
 from lexer import Lexer, Token, TokenStream
@@ -115,8 +115,8 @@ class Parser(TokenStream):
     def precedence_of(token: Token) -> int:
         return Parser.PRECEDENCE.get(token.kind, -1)
 
-    def __init__(self, tokens: list[Token], name = '__main__'):
-        super().__init__(tokens, name)
+    def __init__(self, source: str, tokens: list[Token], name = '__main__'):
+        super().__init__(source, tokens, name)
         self.name = name
         self.functions: Dict[str, Union[Function, Builtin]] = {
             'alloc': Builtin('alloc', [('memory', 'ptr')], {'size': ('int', 0)})
@@ -129,6 +129,7 @@ class Parser(TokenStream):
         self.in_expression_followed_by_block = False
         self.scopes = []
         self.name_id = -1
+        self.deferred_lookup = {}
 
     def new_function(self, name, is_module=False, is_main=False):
         function = Function(name, is_module=is_module, is_main=is_main)
@@ -149,6 +150,28 @@ class Parser(TokenStream):
             offset = self.function.add(block)
             return block, offset
 
+    def error(self, token: Token, message: str):
+        begin = token.begin
+        end = token.end
+        error = f'{self.name}:{begin.row}:{begin.col}: [ERROR]: '
+        before, current, after = self.surrounding_lines_of(token)
+        source  = f'  {begin.row-1:02}|' + before + '\n'
+        source += f'  {begin.row+0:02}|' + current + '\n'
+        source += f'  {" " * max(2, int(math.log10(begin.row)))}|' + '-' * (begin.col - 1) + '^' * max(1, end.col - begin.col) + '\n'
+        source += f'  {begin.row+1:02}|' + after + '\n'
+        return RuntimeError(error + message + source)
+
+    def push_scope(self, scope: Scope):
+        self.scopes.append(Scope(scope))
+        return self.scope
+
+    def pop_scope(self):
+        for constant in self.deferred_lookup.copy():
+            if constant in self.functions or constant in self.types or constant in self.constants:
+                del self.deferred_lookup[constant]
+        scope = self.scopes.pop()
+        return scope
+
     def push(self, instruction):
         return self.block.add(instruction)
 
@@ -164,25 +187,30 @@ class Parser(TokenStream):
         self.imports = imports
         prev_id, self.name_id = self.name_id, 0
         self.new_function(name, is_module=True)
-        self.scopes.append(Scope())
+        self.push_scope(Scope())
         while self.has_more():
             self.parse_stmt()
-        self.scopes.pop()
         assert self.block.terminator is None
         self.name_id = prev_id
         self.block.terminator = Code(Op.RET, token=self.peek())
         return self.functions, self.data, self.constants, self.types
 
     @staticmethod
-    def parse_module(tokens, name):
-        self = Parser(tokens, name)
+    def parse_module(source, tokens, name):
+        self = Parser(source, tokens, name)
         self.new_function(name, is_module=True, is_main=True)
-        self.scopes.append(Scope())
+        self.push_scope(Scope())
         while self.has_more():
             self.parse_stmt()
-        self.scopes.pop()
+        self.pop_scope()
         assert len(self.scopes) == 0
         assert self.block.terminator is None
+
+        if self.deferred_lookup:
+            error = ''
+            for constant, token in self.deferred_lookup.items():
+                error += str(self.error(token, f"'{constant}' was never declared\n"))
+            raise RuntimeError(error)
         self.block.terminator = Code(Op.RET, token=self.peek())
         return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
 
@@ -195,14 +223,18 @@ class Parser(TokenStream):
             if t1.kind in (':', ':=', ','):
                 return self.parse_decl()
             elif t1.kind == '=':
-                ident = self.parse_ident()
+                ident, comptime = self.parse_ident()
+                if comptime:
+                    raise self.error(t0, f"Unknown variable or trying to assign to a comptime value '{ident}'\n")
                 return self.parse_assign(target=ident)
             elif t1.kind == '[':
-                ident = self.parse_ident()
+                ident, comptime = self.parse_ident()
                 target = self.parse_indexing(ident, is_lvl=True)
                 return self.parse_assign(target=target)
-            else:
+            elif t1.kind == '(':
                 return self.parse_func_call()
+            else:
+                raise self.error(t0, f"Unknown stmt type '{t1.kind}'\n")
         elif t0.kind == 'if':
             return self.parse_if()
         elif t0.kind == 'while':
@@ -225,11 +257,12 @@ class Parser(TokenStream):
         file = self.next(expect='ident').data.decode()
 
         if file in self.imports:
-            functions, data, constants, user_types = self.imports[file]
+            functions, data, constants, user_types, decls = self.imports[file]
             self.functions.update(functions)
             self.data.update(data)
             self.constants.update(constants)
             self.types.update(user_types)
+            self.scope.decls.extend(decls)
             return
 
         assert things.kind == '*', "Only support full imports for now"
@@ -237,21 +270,22 @@ class Parser(TokenStream):
             source = data.read()
 
         tokens = Lexer.lex(source)
-        parser = Parser(tokens, file)
+        parser = Parser(source, tokens, file)
         functions, data, constants, user_types = parser.parse_module_as_import(file + '.sf', self.imports)
         self.functions.update(functions)
         self.data.update(data)
         self.constants.update(constants)
         self.types.update(user_types)
 
-        self.imports[file] = functions, data, constants, user_types
+        self.scope.decls.extend(parser.scope.decls)
+        self.imports[file] = functions, data, constants, user_types, parser.scope.decls
 
 
     def parse_decl(self):
         """
-        <decl>  ::=  <name> ':' <type> '=' <expr> ';'
-        <decl>  ::=  <name> ':=' <expr> ';'
-        <decl>  ::=  <name> ':' <type> ';'
+        <decl>  ::=  <name> ':' <type> '=' <expr>
+        <decl>  ::=  <name> ':=' <expr>
+        <decl>  ::=  <name> ':' <type>
         """
         names = [self.next(expect='ident')]
         while self.next_if(','):
@@ -260,7 +294,7 @@ class Parser(TokenStream):
         for name in names:
             decl = name.data.decode()
             if prev := self.scope.find(decl):
-                raise RuntimeError(f'Duplicate declaration for {prev}')
+                raise self.error(name, f"Duplicate declaration for '{name.data.decode()}'\n")
             else:
                 self.scope.add(decl)
 
@@ -324,7 +358,7 @@ class Parser(TokenStream):
             end, end_offset = self.new_block('if_end')
             end_of_else_block.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
         else:
-            end, end_offset = self.new_block('if-end')
+            end, end_offset = self.new_block('if_end')
             branch_block.terminator = Code(Op.BR, args=(then_offset, end_offset), refs=(condition, ), token=if_token)
 
         end_of_if_body.terminator = Code(Op.JMP, args=(end_offset, ), token=if_token)
@@ -372,11 +406,11 @@ class Parser(TokenStream):
 
     def parse_block(self):
         _ = self.next(expect='{')
-        self.scopes.append(Scope(self.scope))
+        self.push_scope(self.scope)
         stmt = None
         while not self.peek_if_any('}', 'eof'):
             stmt = self.parse_stmt()
-        self.scopes.pop()
+        self.pop_scope()
         self.next(expect='}')
         return stmt
 
@@ -389,10 +423,12 @@ class Parser(TokenStream):
         elif token := self.next_if('ident'):
             if token.data.decode() in ('int', 'real', 'string', 'ptr'):
                 t = token.data.decode()
+                self.scope.add(name)
             else:
                 assert False, 'Not implemented'
         elif token := self.next_if('number'):
             t = int(token.data)
+            self.scope.add(name)
         elif token := self.peek_if('struct'):
             t = self.parse_struct(name.data.decode())
         else:
@@ -408,7 +444,7 @@ class Parser(TokenStream):
         prev_id, self.name_id = self.name_id, 0
         self.new_function(name.data.decode())
 
-        self.scopes.append(Scope(self.scope))
+        self.push_scope(self.scope)
         params = {}
         i = 0
         while not self.next_if(expect=')'):
@@ -418,6 +454,7 @@ class Parser(TokenStream):
             self.next_if(expect=',')
             params[field] = (type, self.push(Code(Op.PARAM, args=(type, ), dest=field, token=field_token)), i)
             i += 1
+            self.scope.add(field)
 
         returns = []
         if self.next_if('->'):
@@ -431,11 +468,10 @@ class Parser(TokenStream):
         self.function.params = params
         self.function.returns = returns
 
-        self.scopes.append(Scope(self.scope))
+        self.push_scope(self.scope)
         self.parse_block()
-        self.scopes.pop()
-
-        self.scopes.pop()
+        self.pop_scope()
+        self.pop_scope()
         self.name_id = prev_id
 
         if self.block.terminator is None:
@@ -536,6 +572,10 @@ class Parser(TokenStream):
 
     def parse_prefix(self):
         if op := self.next_if_any(*Parser.UNARY_OPERATOR):
+            if op.kind == '.':
+                name = self.next(expect='ident')
+                return self.push(Code(Op.DOT, dest=self.implicit_name(), refs=(name.data.decode(),), token=op))
+
             prec = self.precedence_of(op) + 1
             expr = self.parse_expr(prec)
             match op.kind:
@@ -545,8 +585,6 @@ class Parser(TokenStream):
                     return self.push(Code(Op.SUB, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '*':
                     return self.push(Code(Op.MUL, dest=self.implicit_name(), refs=(expr,), token=op))
-                case '.':
-                    return self.push(Code(Op.DOT, dest=self.implicit_name(), refs=(expr,), token=op))
                 case '&':
                     return self.push(Code(Op.REF, dest=self.implicit_name(), refs=(expr,), token=op))
                 case 'not':
@@ -564,7 +602,8 @@ class Parser(TokenStream):
                 return self.parse_func_call()
             if self.peek_many(2)[1].kind == '{' and not self.in_expression_followed_by_block:
                 return self.parse_initializer()
-            return self.parse_ident()
+            ident, comptime = self.parse_ident()
+            return ident
         elif self.peek_if('none'):
             return self.parse_none()
         elif self.peek_if('@'):
@@ -589,6 +628,10 @@ class Parser(TokenStream):
 
     def parse_infix(self, left):
         if op := self.next_if_any(*Parser.BINARY_OPERATOR):
+            if op.kind == '.':
+                name = self.next(expect='ident')
+                return self.push(Code(Op.ACCESS, dest=self.implicit_name(), refs=(left, name.data.decode()), token=op))
+
             prec = self.precedence_of(op) + 1
             right = self.parse_expr(prec)
             match op.kind:
@@ -614,8 +657,6 @@ class Parser(TokenStream):
                     return self.push(Code(Op.AND, dest=self.implicit_name(), refs=(left, right), token=op))
                 case 'or':
                     return self.push(Code(Op.OR, dest=self.implicit_name(), refs=(left, right), token=op))
-                case '.':
-                    return self.push(Code(Op.ACCESS, dest=self.implicit_name(), refs=(left, right), token=op))
                 case _:
                     raise RuntimeError(f'Unknown binary operator {op.kind}')
         elif op := self.peek_if('['):
@@ -659,12 +700,19 @@ class Parser(TokenStream):
 
     def parse_ident(self):
         """Name referring to an existing value"""
-        name = self.next(expect='ident').data.decode()
-        return name  # self.block.declarations[name] if name in self.block.declarations else name
+        token = self.next(expect='ident')
+        name = token.data.decode()
+        is_comptime = False
+        source = self.scope.find(name)
+        if source is None:
+            # Unknown identifier must be comptime variable, or error
+            is_comptime = True
+            self.deferred_lookup[name] = token
+        return name, is_comptime
 
     def implicit_name(self):
         self.name_id += 1
-        return f'%{self.name_id}'
+        return f'v{self.name_id}'
 
 
 

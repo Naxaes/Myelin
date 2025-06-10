@@ -78,7 +78,7 @@ class TypeChecker:
         raise RuntimeError(f'Type error between {a} and {b}')
 
     @staticmethod
-    def check(module):
+    def check(module) -> dict[str, dict[str, Type]]:
         functions = module.functions
         data = module.data
         constants = module.constants
@@ -86,7 +86,7 @@ class TypeChecker:
         self = TypeChecker(functions, data, constants, user_types)
         return self.check_()
 
-    def check_(self):
+    def check_(self) -> dict[str, dict[str, Type]]:
         """Local reasoning type checking"""
         code = None
         try:

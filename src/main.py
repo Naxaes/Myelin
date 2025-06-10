@@ -23,7 +23,7 @@ def repl():
 
         try:
             tokens = Lexer.lex(source)
-            module = Parser.parse_module(tokens, 'repl')
+            module = Parser.parse_module(source, tokens, 'repl')
             types = TypeChecker.check(module)
 
             validate_ir(module)
@@ -65,14 +65,12 @@ def main():
         module = parse(source)
     else:
         tokens = Lexer.lex(source)
-        module = Parser.parse_module(tokens, path.name)
+        module = Parser.parse_module(source, tokens, path.name)
         validate_ir(module)
 
     types = TypeChecker.check(module)
     if not check_if_in_ssa_form(module):
         raise ValueError("Module is not in SSA form. Please run the SSA pass before type checking.")
-
-    # print(module)
 
     if args.check:
         return None
@@ -81,6 +79,8 @@ def main():
     graph_vis_source = generate_graph_viz(module)
     with open(f'build/{path.stem}.dot', 'wb') as file:
         file.write(graph_vis_source.encode())
+
+    # print(module)
 
     code, data = X86_64_Generator.generate(module, types)
     machine_code, readable_code = make_macho_executable(path.stem, code, data)

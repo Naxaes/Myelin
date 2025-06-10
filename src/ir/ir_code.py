@@ -105,7 +105,7 @@ class Code:
             case Op.OR:
                 return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
             case Op.NOT:
-                return f'not %%{self.refs[0]}'
+                return f'not %{self.refs[0]}'
             case Op.EQ:
                 return f'{self.dest} := %{self.refs[0]} {self.token.kind} %{self.refs[1]}'
             case Op.NEQ:

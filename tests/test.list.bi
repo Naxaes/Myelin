@@ -135,7 +135,7 @@ digraph {
 		"struct.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %0 : int = 11</TD></TR><TR><TD ALIGN="LEFT">01│ %1 :: .bar = %0</TD></TR><TR><TD ALIGN="LEFT">02│ %2 : str = Hello ted!\n</TD></TR><TR><TD ALIGN="LEFT">03│ %3 :: .baz = %2</TD></TR><TR><TD ALIGN="LEFT">04│ %4 := Foo{%1, %3}</TD></TR><TR><TD ALIGN="LEFT">05│ foo := %4</TD></TR><TR><TD ALIGN="LEFT">06│ %5 = display_foo(%foo)</TD></TR><TR><TD ALIGN="LEFT">07│ x, y := %6</TD></TR><TR><TD ALIGN="LEFT">08│ %7 = print_int(%x)</TD></TR><TR><TD ALIGN="LEFT">09│ %8 = print_int(%y)</TD></TR><TR><TD ALIGN="LEFT">10│ %9 := %x + %y</TD></TR><TR><TD ALIGN="LEFT">11│ %10 = exit(%10)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v0 : int = 11</TD></TR><TR><TD ALIGN="LEFT">01│ v1 :: .bar = %0</TD></TR><TR><TD ALIGN="LEFT">02│ v2 : str = Hello ted!\n</TD></TR><TR><TD ALIGN="LEFT">03│ v3 :: .baz = %2</TD></TR><TR><TD ALIGN="LEFT">04│ v4 := Foo{%1, %3}</TD></TR><TR><TD ALIGN="LEFT">05│ foo := %4</TD></TR><TR><TD ALIGN="LEFT">06│ v5 = display_foo(%foo)</TD></TR><TR><TD ALIGN="LEFT">07│ x, y := %6</TD></TR><TR><TD ALIGN="LEFT">08│ v7 = print_int(%x)</TD></TR><TR><TD ALIGN="LEFT">09│ v8 = print_int(%y)</TD></TR><TR><TD ALIGN="LEFT">10│ v9 := %x + %y</TD></TR><TR><TD ALIGN="LEFT">11│ v10 = exit(%10)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
@@ -178,7 +178,7 @@ digraph {
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ %1 = write(%STDOUT, %message, %size)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 = write(%STDOUT, %message, %size)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret %2</TD></TR>
@@ -194,7 +194,7 @@ digraph {
 		print_int__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ n: int</TD></TR><TR><TD ALIGN="LEFT">01│ %1 : int = 21</TD></TR><TR><TD ALIGN="LEFT">02│ count := %1</TD></TR><TR><TD ALIGN="LEFT">03│ %2 = alloc(%count)</TD></TR><TR><TD ALIGN="LEFT">04│ %3 := %3 as str</TD></TR><TR><TD ALIGN="LEFT">05│ buffer := %4</TD></TR><TR><TD ALIGN="LEFT">06│ %4 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ %5 := %count - %6</TD></TR><TR><TD ALIGN="LEFT">08│ i := %7</TD></TR><TR><TD ALIGN="LEFT">09│ %6 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">10│ %7 : int = 10</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ %8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">13│ %9 := %i - %12</TD></TR><TR><TD ALIGN="LEFT">14│ %i = %13</TD></TR><TR><TD ALIGN="LEFT">15│ %10 : int = 0</TD></TR><TR><TD ALIGN="LEFT">16│ %11 := %n == %15</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ n: int</TD></TR><TR><TD ALIGN="LEFT">01│ v1 : int = 21</TD></TR><TR><TD ALIGN="LEFT">02│ count := %1</TD></TR><TR><TD ALIGN="LEFT">03│ v2 = alloc(%count)</TD></TR><TR><TD ALIGN="LEFT">04│ v3 := %3 as str</TD></TR><TR><TD ALIGN="LEFT">05│ buffer := %4</TD></TR><TR><TD ALIGN="LEFT">06│ v4 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ v5 := %count - %6</TD></TR><TR><TD ALIGN="LEFT">08│ i := %7</TD></TR><TR><TD ALIGN="LEFT">09│ v6 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">10│ v7 : int = 10</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ v8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">13│ v9 := %i - %12</TD></TR><TR><TD ALIGN="LEFT">14│ %i = %13</TD></TR><TR><TD ALIGN="LEFT">15│ v10 : int = 0</TD></TR><TR><TD ALIGN="LEFT">16│ v11 := %n == %15</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %16 then $1 else $2</TD></TR>
@@ -205,7 +205,7 @@ digraph {
 		print_int__bb1_if_then [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb1_if_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %12 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ %13 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ %14 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ %15 := %i - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v12 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ v13 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ v14 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v15 := %i - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $2</TD></TR>
@@ -215,7 +215,7 @@ digraph {
 		print_int__bb3_while [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb3_while</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %16 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ %17 := %n != %0</TD></TR><TR><TD ALIGN="LEFT">02│ %18 : int = 0</TD></TR><TR><TD ALIGN="LEFT">03│ %19 := %i != %2</TD></TR><TR><TD ALIGN="LEFT">04│ %20 := %1 and %3</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v16 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ v17 := %n != %0</TD></TR><TR><TD ALIGN="LEFT">02│ v18 : int = 0</TD></TR><TR><TD ALIGN="LEFT">03│ v19 := %i != %2</TD></TR><TR><TD ALIGN="LEFT">04│ v20 := %1 and %3</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %4 then $3 else $4</TD></TR>
@@ -226,7 +226,7 @@ digraph {
 		print_int__bb3_while_then [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb3_while_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %21 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ %22 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %23 : int = 10</TD></TR><TR><TD ALIGN="LEFT">03│ %24 := %n % %2</TD></TR><TR><TD ALIGN="LEFT">04│ %25 := %1 + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %0 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ %26 : int = 10</TD></TR><TR><TD ALIGN="LEFT">07│ %27 := %n / %6</TD></TR><TR><TD ALIGN="LEFT">08│ %n = %7</TD></TR><TR><TD ALIGN="LEFT">09│ %28 : int = 1</TD></TR><TR><TD ALIGN="LEFT">10│ %29 := %i - %9</TD></TR><TR><TD ALIGN="LEFT">11│ %i = %10</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v21 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ v22 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ v23 : int = 10</TD></TR><TR><TD ALIGN="LEFT">03│ v24 := %n % %2</TD></TR><TR><TD ALIGN="LEFT">04│ v25 := %1 + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %0 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ v26 : int = 10</TD></TR><TR><TD ALIGN="LEFT">07│ v27 := %n / %6</TD></TR><TR><TD ALIGN="LEFT">08│ %n = %7</TD></TR><TR><TD ALIGN="LEFT">09│ v28 : int = 1</TD></TR><TR><TD ALIGN="LEFT">10│ v29 := %i - %9</TD></TR><TR><TD ALIGN="LEFT">11│ %i = %10</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $2</TD></TR>
@@ -236,7 +236,7 @@ digraph {
 		print_int__bb4_while_end [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb4_while_end</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ %31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ %32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ %33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ %34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ %36 = write(%STDOUT, %2, %5)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ v31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ v32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ v33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ v35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ v36 = write(%STDOUT, %2, %5)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
@@ -251,7 +251,7 @@ digraph {
 		display_foo__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ obj: Foo</TD></TR><TR><TD ALIGN="LEFT">01│ %1 := %obj.%bar</TD></TR><TR><TD ALIGN="LEFT">02│ %2 = temp(%obj)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ obj: Foo</TD></TR><TR><TD ALIGN="LEFT">01│ v1 := %obj.%bar</TD></TR><TR><TD ALIGN="LEFT">02│ v2 = temp(%obj)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret %1, %2</TD></TR>
@@ -266,7 +266,7 @@ digraph {
 		temp__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ thing: Foo</TD></TR><TR><TD ALIGN="LEFT">01│ %1 := %thing.%baz</TD></TR><TR><TD ALIGN="LEFT">02│ %2 := %thing.%bar</TD></TR><TR><TD ALIGN="LEFT">03│ %3 = print(%1, %2)</TD></TR><TR><TD ALIGN="LEFT">04│ %4 := %thing.%bar</TD></TR><TR><TD ALIGN="LEFT">05│ %5 : int = 10</TD></TR><TR><TD ALIGN="LEFT">06│ %6 := %4 + %5</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ thing: Foo</TD></TR><TR><TD ALIGN="LEFT">01│ v1 := %thing.%baz</TD></TR><TR><TD ALIGN="LEFT">02│ v2 := %thing.%bar</TD></TR><TR><TD ALIGN="LEFT">03│ v3 = print(%1, %2)</TD></TR><TR><TD ALIGN="LEFT">04│ v4 := %thing.%bar</TD></TR><TR><TD ALIGN="LEFT">05│ v5 : int = 10</TD></TR><TR><TD ALIGN="LEFT">06│ v6 := %4 + %5</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret %6</TD></TR>
@@ -295,7 +295,7 @@ digraph {
 		"fibonacci.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %0 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ a := %0</TD></TR><TR><TD ALIGN="LEFT">02│ %1 : int = 1</TD></TR><TR><TD ALIGN="LEFT">03│ b := %2</TD></TR><TR><TD ALIGN="LEFT">04│ %2 : int = 0</TD></TR><TR><TD ALIGN="LEFT">05│ i := %4</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v0 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ a := %0</TD></TR><TR><TD ALIGN="LEFT">02│ v1 : int = 1</TD></TR><TR><TD ALIGN="LEFT">03│ b := %2</TD></TR><TR><TD ALIGN="LEFT">04│ v2 : int = 0</TD></TR><TR><TD ALIGN="LEFT">05│ i := %4</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -305,7 +305,7 @@ digraph {
 		"fibonacci.sf__bb1_while" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb1_while</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %3 : int = 100</TD></TR><TR><TD ALIGN="LEFT">01│ %4 := %i &lt; %0</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v3 : int = 100</TD></TR><TR><TD ALIGN="LEFT">01│ v4 := %i &lt; %0</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %1 then $2 else $3</TD></TR>
@@ -316,7 +316,7 @@ digraph {
 		"fibonacci.sf__bb2_while_then" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb2_while_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %5 = print_int(%i)</TD></TR><TR><TD ALIGN="LEFT">01│ %6 = print_int(%a)</TD></TR><TR><TD ALIGN="LEFT">02│ %7 := %a + %b</TD></TR><TR><TD ALIGN="LEFT">03│ c := %2</TD></TR><TR><TD ALIGN="LEFT">04│ %a = %b</TD></TR><TR><TD ALIGN="LEFT">05│ %b = %c</TD></TR><TR><TD ALIGN="LEFT">06│ %8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ %9 := %i + %6</TD></TR><TR><TD ALIGN="LEFT">08│ %i = %7</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v5 = print_int(%i)</TD></TR><TR><TD ALIGN="LEFT">01│ v6 = print_int(%a)</TD></TR><TR><TD ALIGN="LEFT">02│ v7 := %a + %b</TD></TR><TR><TD ALIGN="LEFT">03│ c := %2</TD></TR><TR><TD ALIGN="LEFT">04│ %a = %b</TD></TR><TR><TD ALIGN="LEFT">05│ %b = %c</TD></TR><TR><TD ALIGN="LEFT">06│ v8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ v9 := %i + %6</TD></TR><TR><TD ALIGN="LEFT">08│ %i = %7</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -356,7 +356,7 @@ digraph {
 		print_int__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ n: int</TD></TR><TR><TD ALIGN="LEFT">01│ %1 : int = 21</TD></TR><TR><TD ALIGN="LEFT">02│ count := %1</TD></TR><TR><TD ALIGN="LEFT">03│ %2 = alloc(%count)</TD></TR><TR><TD ALIGN="LEFT">04│ %3 := %3 as str</TD></TR><TR><TD ALIGN="LEFT">05│ buffer := %4</TD></TR><TR><TD ALIGN="LEFT">06│ %4 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ %5 := %count - %6</TD></TR><TR><TD ALIGN="LEFT">08│ i := %7</TD></TR><TR><TD ALIGN="LEFT">09│ %6 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">10│ %7 : int = 10</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ %8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">13│ %9 := %i - %12</TD></TR><TR><TD ALIGN="LEFT">14│ %i = %13</TD></TR><TR><TD ALIGN="LEFT">15│ %10 : int = 0</TD></TR><TR><TD ALIGN="LEFT">16│ %11 := %n == %15</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ n: int</TD></TR><TR><TD ALIGN="LEFT">01│ v1 : int = 21</TD></TR><TR><TD ALIGN="LEFT">02│ count := %1</TD></TR><TR><TD ALIGN="LEFT">03│ v2 = alloc(%count)</TD></TR><TR><TD ALIGN="LEFT">04│ v3 := %3 as str</TD></TR><TR><TD ALIGN="LEFT">05│ buffer := %4</TD></TR><TR><TD ALIGN="LEFT">06│ v4 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ v5 := %count - %6</TD></TR><TR><TD ALIGN="LEFT">08│ i := %7</TD></TR><TR><TD ALIGN="LEFT">09│ v6 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">10│ v7 : int = 10</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ v8 : int = 1</TD></TR><TR><TD ALIGN="LEFT">13│ v9 := %i - %12</TD></TR><TR><TD ALIGN="LEFT">14│ %i = %13</TD></TR><TR><TD ALIGN="LEFT">15│ v10 : int = 0</TD></TR><TR><TD ALIGN="LEFT">16│ v11 := %n == %15</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %16 then $1 else $2</TD></TR>
@@ -367,7 +367,7 @@ digraph {
 		print_int__bb1_if_then [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb1_if_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %12 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ %13 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ %14 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ %15 := %i - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v12 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ v13 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ v14 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v15 := %i - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $2</TD></TR>
@@ -377,7 +377,7 @@ digraph {
 		print_int__bb3_while [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb3_while</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %16 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ %17 := %n != %0</TD></TR><TR><TD ALIGN="LEFT">02│ %18 : int = 0</TD></TR><TR><TD ALIGN="LEFT">03│ %19 := %i != %2</TD></TR><TR><TD ALIGN="LEFT">04│ %20 := %1 and %3</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v16 : int = 0</TD></TR><TR><TD ALIGN="LEFT">01│ v17 := %n != %0</TD></TR><TR><TD ALIGN="LEFT">02│ v18 : int = 0</TD></TR><TR><TD ALIGN="LEFT">03│ v19 := %i != %2</TD></TR><TR><TD ALIGN="LEFT">04│ v20 := %1 and %3</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %4 then $3 else $4</TD></TR>
@@ -388,7 +388,7 @@ digraph {
 		print_int__bb3_while_then [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb3_while_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %21 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ %22 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ %23 : int = 10</TD></TR><TR><TD ALIGN="LEFT">03│ %24 := %n % %2</TD></TR><TR><TD ALIGN="LEFT">04│ %25 := %1 + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %0 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ %26 : int = 10</TD></TR><TR><TD ALIGN="LEFT">07│ %27 := %n / %6</TD></TR><TR><TD ALIGN="LEFT">08│ %n = %7</TD></TR><TR><TD ALIGN="LEFT">09│ %28 : int = 1</TD></TR><TR><TD ALIGN="LEFT">10│ %29 := %i - %9</TD></TR><TR><TD ALIGN="LEFT">11│ %i = %10</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v21 := %buffer[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ v22 : int = 48</TD></TR><TR><TD ALIGN="LEFT">02│ v23 : int = 10</TD></TR><TR><TD ALIGN="LEFT">03│ v24 := %n % %2</TD></TR><TR><TD ALIGN="LEFT">04│ v25 := %1 + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %0 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ v26 : int = 10</TD></TR><TR><TD ALIGN="LEFT">07│ v27 := %n / %6</TD></TR><TR><TD ALIGN="LEFT">08│ %n = %7</TD></TR><TR><TD ALIGN="LEFT">09│ v28 : int = 1</TD></TR><TR><TD ALIGN="LEFT">10│ v29 := %i - %9</TD></TR><TR><TD ALIGN="LEFT">11│ %i = %10</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $2</TD></TR>
@@ -398,7 +398,7 @@ digraph {
 		print_int__bb4_while_end [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb4_while_end</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ %31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ %32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ %33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ %34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ %35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ %36 = write(%STDOUT, %2, %5)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v30 := %buffer + %i</TD></TR><TR><TD ALIGN="LEFT">01│ v31 : int = 1</TD></TR><TR><TD ALIGN="LEFT">02│ v32 := %0 + %1</TD></TR><TR><TD ALIGN="LEFT">03│ v33 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v34 := %count - %3</TD></TR><TR><TD ALIGN="LEFT">05│ v35 := %4 - %i</TD></TR><TR><TD ALIGN="LEFT">06│ v36 = write(%STDOUT, %2, %5)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
@@ -429,7 +429,7 @@ digraph {
 		"main.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %0 : str = Hello world!\n</TD></TR><TR><TD ALIGN="LEFT">01│ a := %0</TD></TR><TR><TD ALIGN="LEFT">02│ %1 := %a.%len</TD></TR><TR><TD ALIGN="LEFT">03│ %2 = print(%a, %2)</TD></TR><TR><TD ALIGN="LEFT">04│ %3 : int = 32</TD></TR><TR><TD ALIGN="LEFT">05│ %4 = alloc(%4)</TD></TR><TR><TD ALIGN="LEFT">06│ %5 := %5 as str</TD></TR><TR><TD ALIGN="LEFT">07│ message := %6</TD></TR><TR><TD ALIGN="LEFT">08│ %6 : str = Hello </TD></TR><TR><TD ALIGN="LEFT">09│ %7 : int = 6</TD></TR><TR><TD ALIGN="LEFT">10│ %8 = copy(%message, %8, %9)</TD></TR><TR><TD ALIGN="LEFT">11│ %9 : int = 6</TD></TR><TR><TD ALIGN="LEFT">12│ %10 := %message + %11</TD></TR><TR><TD ALIGN="LEFT">13│ %11 : str = World </TD></TR><TR><TD ALIGN="LEFT">14│ %12 : int = 6</TD></TR><TR><TD ALIGN="LEFT">15│ %13 = copy(%12, %13, %14)</TD></TR><TR><TD ALIGN="LEFT">16│ %14 : int = 0</TD></TR><TR><TD ALIGN="LEFT">17│ i := %16</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v0 : str = Hello world!\n</TD></TR><TR><TD ALIGN="LEFT">01│ a := %0</TD></TR><TR><TD ALIGN="LEFT">02│ v1 := %a.%len</TD></TR><TR><TD ALIGN="LEFT">03│ v2 = print(%a, %2)</TD></TR><TR><TD ALIGN="LEFT">04│ v3 : int = 32</TD></TR><TR><TD ALIGN="LEFT">05│ v4 = alloc(%4)</TD></TR><TR><TD ALIGN="LEFT">06│ v5 := %5 as str</TD></TR><TR><TD ALIGN="LEFT">07│ message := %6</TD></TR><TR><TD ALIGN="LEFT">08│ v6 : str = Hello </TD></TR><TR><TD ALIGN="LEFT">09│ v7 : int = 6</TD></TR><TR><TD ALIGN="LEFT">10│ v8 = copy(%message, %8, %9)</TD></TR><TR><TD ALIGN="LEFT">11│ v9 : int = 6</TD></TR><TR><TD ALIGN="LEFT">12│ v10 := %message + %11</TD></TR><TR><TD ALIGN="LEFT">13│ v11 : str = World </TD></TR><TR><TD ALIGN="LEFT">14│ v12 : int = 6</TD></TR><TR><TD ALIGN="LEFT">15│ v13 = copy(%12, %13, %14)</TD></TR><TR><TD ALIGN="LEFT">16│ v14 : int = 0</TD></TR><TR><TD ALIGN="LEFT">17│ i := %16</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -439,7 +439,7 @@ digraph {
 		"main.sf__bb1_while" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb1_while</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %15 : int = 10</TD></TR><TR><TD ALIGN="LEFT">01│ %16 := %i &lt; %0</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v15 : int = 10</TD></TR><TR><TD ALIGN="LEFT">01│ v16 := %i &lt; %0</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %1 then $2 else $3</TD></TR>
@@ -450,7 +450,7 @@ digraph {
 		"main.sf__bb2_while_then" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb2_while_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %17 : int = 12</TD></TR><TR><TD ALIGN="LEFT">01│ %18 := %i + %0</TD></TR><TR><TD ALIGN="LEFT">02│ %19 := %message[%1]</TD></TR><TR><TD ALIGN="LEFT">03│ %20 : int = 48</TD></TR><TR><TD ALIGN="LEFT">04│ %21 := %3 + %i</TD></TR><TR><TD ALIGN="LEFT">05│ %2 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ %22 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ %23 := %i + %6</TD></TR><TR><TD ALIGN="LEFT">08│ %i = %7</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v17 : int = 12</TD></TR><TR><TD ALIGN="LEFT">01│ v18 := %i + %0</TD></TR><TR><TD ALIGN="LEFT">02│ v19 := %message[%1]</TD></TR><TR><TD ALIGN="LEFT">03│ v20 : int = 48</TD></TR><TR><TD ALIGN="LEFT">04│ v21 := %3 + %i</TD></TR><TR><TD ALIGN="LEFT">05│ %2 = %4</TD></TR><TR><TD ALIGN="LEFT">06│ v22 : int = 1</TD></TR><TR><TD ALIGN="LEFT">07│ v23 := %i + %6</TD></TR><TR><TD ALIGN="LEFT">08│ %i = %7</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -460,7 +460,7 @@ digraph {
 		"main.sf__bb3_while_end" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb3_while_end</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %24 : int = 12</TD></TR><TR><TD ALIGN="LEFT">01│ %25 := %0 + %i</TD></TR><TR><TD ALIGN="LEFT">02│ %26 := %message[%1]</TD></TR><TR><TD ALIGN="LEFT">03│ %27 : int = 10</TD></TR><TR><TD ALIGN="LEFT">04│ %2 = %3</TD></TR><TR><TD ALIGN="LEFT">05│ %28 : int = 12</TD></TR><TR><TD ALIGN="LEFT">06│ %29 := %5 + %i</TD></TR><TR><TD ALIGN="LEFT">07│ %30 : int = 1</TD></TR><TR><TD ALIGN="LEFT">08│ %31 := %6 + %7</TD></TR><TR><TD ALIGN="LEFT">09│ %32 := %message[%8]</TD></TR><TR><TD ALIGN="LEFT">10│ %33 : int = 0</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ %34 : int = 23</TD></TR><TR><TD ALIGN="LEFT">13│ %35 = print(%message, %12)</TD></TR><TR><TD ALIGN="LEFT">14│ %36 : int = 1</TD></TR><TR><TD ALIGN="LEFT">15│ %37 :: .x = %14</TD></TR><TR><TD ALIGN="LEFT">16│ %38 : int = 7</TD></TR><TR><TD ALIGN="LEFT">17│ %39 :: .a = %16</TD></TR><TR><TD ALIGN="LEFT">18│ %40 : str = Kaboom\n\0</TD></TR><TR><TD ALIGN="LEFT">19│ %41 :: .b = %18</TD></TR><TR><TD ALIGN="LEFT">20│ %42 : int = 1</TD></TR><TR><TD ALIGN="LEFT">21│ %43 :: .y = %20</TD></TR><TR><TD ALIGN="LEFT">22│ %44 := Thing{%15, %17, %19, %21}</TD></TR><TR><TD ALIGN="LEFT">23│ thing := %22</TD></TR><TR><TD ALIGN="LEFT">24│ %45 := %thing.%b</TD></TR><TR><TD ALIGN="LEFT">25│ %46 := %thing.%a</TD></TR><TR><TD ALIGN="LEFT">26│ %47 = print(%24, %25)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v24 : int = 12</TD></TR><TR><TD ALIGN="LEFT">01│ v25 := %0 + %i</TD></TR><TR><TD ALIGN="LEFT">02│ v26 := %message[%1]</TD></TR><TR><TD ALIGN="LEFT">03│ v27 : int = 10</TD></TR><TR><TD ALIGN="LEFT">04│ %2 = %3</TD></TR><TR><TD ALIGN="LEFT">05│ v28 : int = 12</TD></TR><TR><TD ALIGN="LEFT">06│ v29 := %5 + %i</TD></TR><TR><TD ALIGN="LEFT">07│ v30 : int = 1</TD></TR><TR><TD ALIGN="LEFT">08│ v31 := %6 + %7</TD></TR><TR><TD ALIGN="LEFT">09│ v32 := %message[%8]</TD></TR><TR><TD ALIGN="LEFT">10│ v33 : int = 0</TD></TR><TR><TD ALIGN="LEFT">11│ %9 = %10</TD></TR><TR><TD ALIGN="LEFT">12│ v34 : int = 23</TD></TR><TR><TD ALIGN="LEFT">13│ v35 = print(%message, %12)</TD></TR><TR><TD ALIGN="LEFT">14│ v36 : int = 1</TD></TR><TR><TD ALIGN="LEFT">15│ v37 :: .x = %14</TD></TR><TR><TD ALIGN="LEFT">16│ v38 : int = 7</TD></TR><TR><TD ALIGN="LEFT">17│ v39 :: .a = %16</TD></TR><TR><TD ALIGN="LEFT">18│ v40 : str = Kaboom\n\0</TD></TR><TR><TD ALIGN="LEFT">19│ v41 :: .b = %18</TD></TR><TR><TD ALIGN="LEFT">20│ v42 : int = 1</TD></TR><TR><TD ALIGN="LEFT">21│ v43 :: .y = %20</TD></TR><TR><TD ALIGN="LEFT">22│ v44 := Thing{%15, %17, %19, %21}</TD></TR><TR><TD ALIGN="LEFT">23│ thing := %22</TD></TR><TR><TD ALIGN="LEFT">24│ v45 := %thing.%b</TD></TR><TR><TD ALIGN="LEFT">25│ v46 := %thing.%a</TD></TR><TR><TD ALIGN="LEFT">26│ v47 = print(%24, %25)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
@@ -488,7 +488,7 @@ digraph {
 		copy__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ destination: str</TD></TR><TR><TD ALIGN="LEFT">01│ source: str</TD></TR><TR><TD ALIGN="LEFT">02│ size: int</TD></TR><TR><TD ALIGN="LEFT">03│ %1 : int = 0</TD></TR><TR><TD ALIGN="LEFT">04│ i := %3</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ destination: str</TD></TR><TR><TD ALIGN="LEFT">01│ source: str</TD></TR><TR><TD ALIGN="LEFT">02│ size: int</TD></TR><TR><TD ALIGN="LEFT">03│ v1 : int = 0</TD></TR><TR><TD ALIGN="LEFT">04│ i := %3</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -498,7 +498,7 @@ digraph {
 		copy__bb1_while [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb1_while</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %2 := %i &lt; %size</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v2 := %i &lt; %size</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">if %0 then $2 else $3</TD></TR>
@@ -509,7 +509,7 @@ digraph {
 		copy__bb2_while_then [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb2_while_then</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ %3 := %destination[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ %4 := %source[%i]</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ %5 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ %6 := %i + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ v3 := %destination[%i]</TD></TR><TR><TD ALIGN="LEFT">01│ v4 := %source[%i]</TD></TR><TR><TD ALIGN="LEFT">02│ %0 = %1</TD></TR><TR><TD ALIGN="LEFT">03│ v5 : int = 1</TD></TR><TR><TD ALIGN="LEFT">04│ v6 := %i + %3</TD></TR><TR><TD ALIGN="LEFT">05│ %i = %4</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">jmp $1</TD></TR>
@@ -534,7 +534,7 @@ digraph {
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
-                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ %1 = write(%STDOUT, %message, %size)</TD></TR>
+                        <TR><TD ALIGN="LEFT">00│ message: str</TD></TR><TR><TD ALIGN="LEFT">01│ size: int</TD></TR><TR><TD ALIGN="LEFT">02│ v1 = write(%STDOUT, %message, %size)</TD></TR>
                         
                         <TR><TD BGCOLOR="black" HEIGHT="1"></TD></TR>
                         <TR><TD ALIGN="LEFT">ret %2</TD></TR>
