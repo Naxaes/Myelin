@@ -1,4 +1,4 @@
-copy: (destination: str, source: str, size: int) {
+copy: (destination: str, source: str, size: int) -> void {
 	i := 0
 	while (i < size) {
 		destination[i] = source[i]

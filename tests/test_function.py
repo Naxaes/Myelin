@@ -336,7 +336,7 @@ class TestFunction(unittest.TestCase):
                 br cond $loop $end
             $end
                 x := 30
-                y := a get x
+                y := a + x
                 print a
                 print y
                 ret

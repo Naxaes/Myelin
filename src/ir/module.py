@@ -4,8 +4,9 @@ from ir import Function, Builtin
 
 
 class Module:
-    def __init__(self, name: str, functions: Dict[str, Union[Function, Builtin]], data: Dict, constants: Dict, types: Dict, imports: Dict):
+    def __init__(self, name: str, source: str, functions: Dict[str, Union[Function, Builtin]], data: Dict, constants: Dict, types: Dict, imports: Dict):
         self.name = name
+        self.source = source
         self.functions = functions
         # Static data needed in the executable
         self.data = data

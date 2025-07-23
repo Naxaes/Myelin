@@ -54,7 +54,6 @@ def generate_graph_viz(module):
 
         with dot.subgraph(name=f'cluster_{function_name}') as subgraph:
             subgraph.attr(label=function_name)
-            subgraph.node(name=function_name, label='Exit')
 
             for block in function.blocks:
                 name = f'{function_name}__{block.label}'
@@ -77,7 +76,8 @@ def generate_graph_viz(module):
 
                 match block.terminator.op:
                     case Op.RET:
-                        subgraph.edge(name, function_name)
+                        # subgraph.edge(name, function_name)
+                        pass
                     case Op.BR:
                         left, right = block.terminator.args
                         subgraph.edge(name, f'{function_name}__{function.blocks[left].label}')

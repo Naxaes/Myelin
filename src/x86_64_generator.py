@@ -107,6 +107,8 @@ class X86_64_Generator:
         data = ""
         for i, d in self.data.items():
             if type(d) == str:
+                # data += f'string_{i}: db `{d}`, 0\n'
+                # data += f'data_{i}: dq {len(d)}, string_{i}\n'
                 data += f'data_{i}: db `{d}`, 0\n'
 
         return self.code, data
@@ -431,6 +433,8 @@ class X86_64_Generator:
             self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {t} = data_{index} ("{data}")')
         elif t.name == 'real':
             self.add_code('mov', reg, int(data), comment=f'{code.dest} : {t} = {data}')
+        # elif type(t) == StructType and t.name == 'struct string':
+        #     self.add_code('lea', reg, f'[rel data_{index}]', comment=f'{code.dest} : {t} = data_{index} ("{data}")')
         else:
             # assert t.name != 'inferred'
             self.add_code('mov', reg, data, comment=f'{code.dest} : {t} = {data}')

@@ -1,6 +1,6 @@
-import math
 from typing import Union, Dict
 
+import errors
 from lexer import Lexer, Token, TokenStream
 from ir import Op, Function, Builtin, Block, Code, Module
 
@@ -150,17 +150,6 @@ class Parser(TokenStream):
             offset = self.function.add(block)
             return block, offset
 
-    def error(self, token: Token, message: str):
-        begin = token.begin
-        end = token.end
-        error = f'{self.name}:{begin.row}:{begin.col}: [ERROR]: '
-        before, current, after = self.surrounding_lines_of(token)
-        source  = f'  {begin.row-1:02}|' + before + '\n'
-        source += f'  {begin.row+0:02}|' + current + '\n'
-        source += f'  {" " * max(2, int(math.log10(begin.row)))}|' + '-' * (begin.col - 1) + '^' * max(1, end.col - begin.col) + '\n'
-        source += f'  {begin.row+1:02}|' + after + '\n'
-        return RuntimeError(error + message + source)
-
     def push_scope(self, scope: Scope):
         self.scopes.append(Scope(scope))
         return self.scope
@@ -209,10 +198,10 @@ class Parser(TokenStream):
         if self.deferred_lookup:
             error = ''
             for constant, token in self.deferred_lookup.items():
-                error += str(self.error(token, f"'{constant}' was never declared\n"))
+                error += str(errors.error(self._name, self._source, token, f"'{constant}' was never declared\n"))
             raise RuntimeError(error)
         self.block.terminator = Code(Op.RET, token=self.peek())
-        return Module(name, self.functions, self.data, self.constants, self.types, self.imports)
+        return Module(name, source, self.functions, self.data, self.constants, self.types, self.imports)
 
     # TODO: Separate declaration and statements, since a declaration is only allowed
     #       within a module or block.
@@ -225,7 +214,7 @@ class Parser(TokenStream):
             elif t1.kind == '=':
                 ident, comptime = self.parse_ident()
                 if comptime:
-                    raise self.error(t0, f"Unknown variable or trying to assign to a comptime value '{ident}'\n")
+                    raise errors.error(self._name, self._source, t0, f"Unknown variable or trying to assign to a comptime value '{ident}'\n")
                 return self.parse_assign(target=ident)
             elif t1.kind == '[':
                 ident, comptime = self.parse_ident()
@@ -234,7 +223,7 @@ class Parser(TokenStream):
             elif t1.kind == '(':
                 return self.parse_func_call()
             else:
-                raise self.error(t0, f"Unknown stmt type '{t1.kind}'\n")
+                raise errors.error(self._name, self._source, t0, f"Unknown stmt type '{t1.kind}'\n")
         elif t0.kind == 'if':
             return self.parse_if()
         elif t0.kind == 'while':
@@ -269,7 +258,7 @@ class Parser(TokenStream):
         with open('examples/' + file + '.sf', 'r') as data:
             source = data.read()
 
-        tokens = Lexer.lex(source)
+        tokens = Lexer.lex(self._name, source)
         parser = Parser(source, tokens, file)
         functions, data, constants, user_types = parser.parse_module_as_import(file + '.sf', self.imports)
         self.functions.update(functions)
@@ -294,7 +283,7 @@ class Parser(TokenStream):
         for name in names:
             decl = name.data.decode()
             if prev := self.scope.find(decl):
-                raise self.error(name, f"Duplicate declaration for '{name.data.decode()}'\n")
+                raise errors.error(self._name, self._source, name, f"Duplicate declaration for '{name.data.decode()}'\n")
             else:
                 self.scope.add(decl)
 
@@ -303,7 +292,7 @@ class Parser(TokenStream):
             if self.next_if('='):
                 expr = self.parse_expr()
                 for i, name in enumerate(names):
-                    id = self.push(Code(Op.DECL, args=(type, ), dest=name.data.decode(), refs=(expr+i,) if expr is not None else (), token=name))
+                    id = self.push(Code(Op.DECL, args=(type, ), dest=name.data.decode(), refs=(expr, ) if expr is not None else (), token=name))
                 return id
             else:
                 if hasattr(type, '__iter__'):
@@ -421,7 +410,7 @@ class Parser(TokenStream):
         if self.next_if('('):
             t = self.parse_func_decl(name)
         elif token := self.next_if('ident'):
-            if token.data.decode() in ('int', 'real', 'string', 'ptr'):
+            if token.data.decode() in ('int', 'real', 'string', 'ptr', 'i8', 'i16', 'i32', 'i64'):
                 t = token.data.decode()
                 self.scope.add(name)
             else:
@@ -477,7 +466,7 @@ class Parser(TokenStream):
         if self.block.terminator is None:
             self.block.terminator = Code(Op.RET, token=self.peek())
         self.function = previous
-        return 'func'
+        return f"({', '.join(p[0] for p in params.values())}) -> {', '.join(r[1] for r in returns) if returns else 'void'}"
 
     def parse_func_call(self):
         name = self.next(expect='ident')
@@ -506,7 +495,7 @@ class Parser(TokenStream):
             fields[field_name] = (field_type, field_name, i)
             i += 1
 
-        self.types[name] = {'__name__': name, **fields}
+        self.types[name] = {**fields}
         return 'struct'
 
     def parse_initializer(self):

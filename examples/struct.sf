@@ -1,7 +1,10 @@
 import * from macos
 import * from core
 
-foo := Foo { bar=11, baz="Hello ted!\n" }
+foo := Foo {
+    bar = 11
+    baz = "Hello ted!\n"
+}
 x, y := display_foo(foo)
 
 print_int(x)
@@ -12,7 +15,7 @@ display_foo: (obj: Foo) -> int, int {
 
 	temp: (thing: Foo) -> int {
 		print(thing.baz, thing.bar)
-		return thing.bar + 10
+        return thing.bar + 10
 	}
 }
 

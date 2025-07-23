@@ -7,7 +7,8 @@ from ir import Op
 
 # --- Qualifiers ---
 class Qualifier(Enum):
-    MUT = auto()
+    MUT   = auto()
+    CONST = auto()
 
 
 # --- Base Type Class ---
@@ -15,7 +16,7 @@ class Type(ABC):
     def __init__(self, name: str, size: int, qualifiers: Optional[Set[Qualifier]] = None):
         self.name = name
         self.size = size
-        self.qualifiers = qualifiers or set()
+        self.qualifiers = qualifiers or {Qualifier.CONST}
 
     @abstractmethod
     def __repr__(self):
@@ -52,8 +53,6 @@ class InferredType(Type):
         super().__init__('inferred', 0)
 
     def is_subtype_of(self, other: Type) -> bool:
-        if isinstance(other, InferredType):
-            return False
         return True
 
     def __repr__(self):
@@ -72,8 +71,8 @@ class PrimitiveType(Type):
         'u32':      {  'u64',  'f64', 'i64', 'int'},
         'i32':      {  'f64',  'i64', 'int'},
         'f32':      {  'f64'},
-        'i64':      { },
-        'int':      { },
+        'i64':      {  'int'},
+        'int':      {  'i64'},
         'u64':      { },
         'f64':      { },
     }
@@ -86,6 +85,13 @@ class PrimitiveType(Type):
             return other
         elif self.name in PrimitiveType.SAFE_COERCIONS.get(other.name, set()):
             return self
+        elif isinstance(other, LiteralType):
+            if other.name.isnumeric() and self.name in ('int', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64'):
+                if self.size >= other.size:
+                    return self
+            elif self.name == 'bool' and other.name.lower() in ('0', '1', 'true', 'false'):
+                return self
+            assert False, "Not implemented"
         else:
             return self if self.is_equal(other) else None
 
@@ -124,24 +130,65 @@ class PrimitiveType(Type):
                 return True
             allowed = PrimitiveType.SAFE_COERCIONS.get(self.name, set())
             return other.name in allowed
+        elif isinstance(other, LiteralType):
+            if self.name in ('int', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64'):
+                if other.name.isnumeric() and self.size >= other.size:
+                    return True
+            return False
         return isinstance(other, InferredType)
 
     def __repr__(self):
-        return f"{self.qualifier_str()} {self.name}{self.size}".strip()
+        return f"{self.qualifier_str()} {self.name}".strip()
 
 
 class LiteralType(Type):
     def __init__(self, value):
-        assert type(value) == int, "Other's not implemented"
+        assert type(value) == int or type(value) == bool, "Other's not implemented"
         super().__init__(str(value), value.bit_length()//8 + 1)
 
     def value(self) -> int:
         return int(self.name)
 
+    def operation(self, op: Op, other: Type) -> Optional[Type]:
+        if isinstance(other, LiteralType):
+            match op:
+                case Op.ADD:
+                    return LiteralType(self.value() + other.value())
+                case Op.SUB:
+                    return LiteralType(self.value() - other.value())
+                case Op.MUL:
+                    return LiteralType(self.value() * other.value())
+                case Op.DIV:
+                    if other.value() == 0:
+                        raise ZeroDivisionError("Division by zero")
+                    return LiteralType(self.value() // other.value())
+                case Op.MOD:
+                    if other.value() == 0:
+                        raise ZeroDivisionError("Division by zero")
+                    return LiteralType(self.value() % other.value())
+                case Op.EQ:
+                    return LiteralType(self.value() == other.value())
+                case Op.NEQ:
+                    return LiteralType(self.value() != other.value())
+                case Op.GT:
+                    return LiteralType(self.value() > other.value())
+                case Op.LT:
+                    return LiteralType(self.value() < other.value())
+                case Op.GTE:
+                    return LiteralType(self.value() >= other.value())
+                case Op.LTE:
+                    return LiteralType(self.value() <= other.value())
+                case _:
+                    raise RuntimeError(f'Unknown binary operator {op} for {self} and {other}')
+        return other.operation(op, self)
+
     def is_subtype_of(self, other: 'Type') -> bool:
         if isinstance(other, PrimitiveType):
-            if self.name == other.name or other.name == 'int':
-                return True
+            if self.name.isnumeric() and other.name in ('int', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64'):
+                if other.size >= self.size:
+                    return True
+        elif isinstance(other, InferredType):
+            return True
         return self.is_equal(other)
 
 
@@ -153,6 +200,9 @@ class PointerType(Type):
     def __init__(self, pointee: Type, qualifiers: Optional[Set[Qualifier]] = None):
         super().__init__(name=f"{pointee.name}*", size=8, qualifiers=qualifiers)
         self.pointee = pointee
+
+    def get_attribute(self, attribute):
+        return self.pointee.get_attribute(attribute)
 
     def operation(self, op: Op, other: Type) -> Optional[Type]:
         match op:
@@ -185,30 +235,8 @@ class PointerType(Type):
         return False
 
     def __repr__(self):
-        return f"{self.qualifier_str()} {str(self.pointee)}*".strip()
+        return f"{self.qualifier_str()}* {str(self.pointee)}".strip()
 
-
-class ReferenceType(Type):
-    def __init__(self, pointee: Type, qualifiers: Optional[Set[Qualifier]] = None):
-        super().__init__(name=f"{pointee.name}&", size=8, qualifiers=qualifiers)
-        self.pointee = pointee
-
-    def is_subtype_of(self, target: 'ReferenceType') -> bool:
-        if not isinstance(target, PointerType):
-            return False
-
-        # 1. Same base types, allowing qualifier widening (e.g., to const)
-        if self.pointee.is_equal(target.pointee):
-            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in target.qualifiers
-
-        # 2. Subtype relationship between pointed types
-        if self.pointee.is_subtype_of(target.pointee):
-            return Qualifier.MUT in self.qualifiers or Qualifier.MUT not in target.qualifiers
-
-        return False
-
-    def __repr__(self):
-        return f"{self.qualifier_str()} {str(self.pointee)}&".strip()
 
 # --- Array Type ---
 class ArrayType(Type):

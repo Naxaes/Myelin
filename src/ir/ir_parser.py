@@ -10,7 +10,6 @@ KEYWORDS = {
     'free',
     'br',
     'set',
-    'get',
     'end',
     'brw',
     'ref',
@@ -197,8 +196,6 @@ def parse(source: str):
                 if op.repr in OPERATORS:
                     op = Op[OPERATORS[op.repr].upper()]
                     block.add(Code(op, dest=dest, refs=(arg_or_op.repr, arg2.repr)))
-                elif op.repr == 'get':
-                    block.add(Code(Op.GET, dest=dest, refs=(arg_or_op.repr, arg2.repr)))
                 elif arg_or_op.repr == 'call':
                     block.add(Code(Op.CALL, dest=dest, args=(op.repr, ), refs=(arg2.repr, )))
                 else:
@@ -277,4 +274,4 @@ def parse(source: str):
         print("Missing 'end'")
         exit(1)
 
-    return Module('module', functions, data, {}, {}, {})
+    return Module('module', source, functions, data, {}, {}, {})

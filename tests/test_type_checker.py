@@ -22,7 +22,8 @@ class TypeCheckerTest(unittest.TestCase):
         function = module.functions['test_0']
         types = TypeChecker.check(module)
         self.assertEqual({
-            'n': PrimitiveType(name='int', size=8),
+            None: PrimitiveType(name='void', size=0),
+            'n': LiteralType(value=32),
             'x': PointerType(PrimitiveType(name='void', size=0)),
             'y': PointerType(PrimitiveType(name='void', size=0)),
             '_': PrimitiveType(name='int', size=8),

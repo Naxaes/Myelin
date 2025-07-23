@@ -13,13 +13,12 @@ def find(table, v):
 
 
 class Block:
-    def __init__(self, label: str, instructions: list[Code] = (), terminator: Optional[Code] = None, parameters: tuple[dict] = ()):
+    def __init__(self, label: str, instructions: list[Code] = (), terminator: Optional[Code] = None):
         assert all(x.op in INSTRUCTIONS for x in instructions)
 
         self.label        = label
         self.instructions = list(instructions)
         self.terminator   = terminator
-        self.parameters   = parameters
         assert self.terminator.op in TERMINATORS if instructions else True, f"Invalid terminator '{self.terminator.op}' in block {self.label}, expected one of {TERMINATORS}"
 
     def add(self, instruction: Code) -> int:

@@ -22,7 +22,7 @@ def repl():
         source = repl_code + line + '\n'
 
         try:
-            tokens = Lexer.lex(source)
+            tokens = Lexer.lex('repl', source)
             module = Parser.parse_module(source, tokens, 'repl')
             types = TypeChecker.check(module)
 
@@ -64,7 +64,7 @@ def main():
     if args.is_ir or path.suffix == '.ir':
         module = parse(source)
     else:
-        tokens = Lexer.lex(source)
+        tokens = Lexer.lex(path.name, source)
         module = Parser.parse_module(source, tokens, path.name)
         validate_ir(module)
 

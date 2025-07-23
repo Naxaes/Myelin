@@ -24,11 +24,11 @@ class Op(Enum):
     GTE = auto()
     LTE = auto()
     # Misc
-    DOT = auto()
+    DOT = auto()        # Prefix dot (.x)
+    ACCESS = auto()     # Infix dot (x.y)
     AS = auto()
     INDEX = auto()
     ASSIGN = auto()
-    GET = auto()
     LIT = auto()
     BRW = auto()
     REF = auto()
@@ -37,7 +37,6 @@ class Op(Enum):
     PARAM = auto()
     FIELD = auto()
     INIT = auto()
-    ACCESS = auto()
     # Side effects
     RET = auto()
     PRINT = auto()
@@ -67,7 +66,7 @@ SIDE_EFFECTS = (Op.RET, Op.PRINT, Op.CALL, Op.ALLOC, Op.FREE, Op.SYSCALL, Op.DEC
 ARITHMETICS = (Op.ADD, Op.SUB, Op.MUL, Op.DIV, Op.MOD)
 LOGICALS = (Op.AND, Op.OR, Op.NOT, Op.EQ, Op.NEQ, Op.GT, Op.LT, Op.GTE, Op.LTE)
 INSTRUCTIONS = ARITHMETICS + LOGICALS + (
-    Op.DOT, Op.AS, Op.INDEX, Op.ASSIGN, Op.GET, Op.LIT, Op.REF, Op.MOVE, Op.COPY, Op.BRW, Op.PARAM, Op.FIELD, Op.INIT
+    Op.DOT, Op.AS, Op.INDEX, Op.ASSIGN, Op.LIT, Op.REF, Op.MOVE, Op.COPY, Op.BRW, Op.PARAM, Op.FIELD, Op.INIT
 ) + SIDE_EFFECTS + TERMINATORS + (Op.SET, Op.ACCESS, Op.ASM, Op.DECL, Op.MULTIDECL, Op.LABEL)
 
 @dataclass
@@ -126,8 +125,6 @@ class Code:
                 return f'{self.dest} := %{self.refs[0]}[%{self.refs[1]}]'
             case Op.ASSIGN:
                 return f'%{self.refs[0]} = %{self.refs[1]}'
-            case Op.GET:
-                return f'get'
             case Op.LIT:
                 return f'{self.dest} : {self.args[0]} = {self.args[2]}'
             case Op.BRW:
@@ -184,7 +181,7 @@ def c(**kwargs):
         op = Op[op.upper()]
     assert op in INSTRUCTIONS
 
-    if op in (Op.ADD, Op.SUB, Op.MUL, Op.GT, Op.LT, Op.GET):
+    if op in (Op.ADD, Op.SUB, Op.MUL, Op.GT, Op.LT):
         a, b = kwargs.pop('refs')
         dest = kwargs.pop('dest')
         assert not kwargs

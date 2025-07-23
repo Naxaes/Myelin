@@ -119,19 +119,17 @@ PYTHONPATH=src python3 -m unittest discover tests -q -b 2> /dev/null
 :b shell 20
 cat build/struct.dot
 :i returncode 0
-:b stdout 10335
+:b stdout 9925
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
 		label=alloc
-		alloc [label=Exit]
 	}
 	"struct.sf__bb0_entry" -> display_foo__bb0_entry [style=dotted]
 	"struct.sf__bb0_entry" -> print_int__bb0_entry [style=dotted]
 	"struct.sf__bb0_entry" -> exit__bb0_entry [style=dotted]
 	subgraph "cluster_struct.sf" {
 		label="struct.sf"
-		"struct.sf" [label=Exit]
 		"struct.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -141,11 +139,9 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		"struct.sf__bb0_entry" -> "struct.sf"
 	}
 	subgraph cluster_write {
 		label=write
-		write [label=Exit]
 		write__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -155,11 +151,9 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		write__bb0_entry -> write
 	}
 	subgraph cluster_exit {
 		label=exit
-		exit [label=Exit]
 		exit__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -169,12 +163,10 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %1</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		exit__bb0_entry -> exit
 	}
 	print__bb0_entry -> write__bb0_entry [style=dotted]
 	subgraph cluster_print {
 		label=print
-		print [label=Exit]
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -184,13 +176,11 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		print__bb0_entry -> print
 	}
 	print_int__bb0_entry -> alloc [style=dotted]
 	print_int__bb4_while_end -> write__bb0_entry [style=dotted]
 	subgraph cluster_print_int {
 		label=print_int
-		print_int [label=Exit]
 		print_int__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -242,12 +232,10 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %6</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		print_int__bb4_while_end -> print_int
 	}
 	display_foo__bb0_entry -> temp__bb0_entry [style=dotted]
 	subgraph cluster_display_foo {
 		label=display_foo
-		display_foo [label=Exit]
 		display_foo__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -257,12 +245,10 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %1, %2</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		display_foo__bb0_entry -> display_foo
 	}
 	temp__bb0_entry -> print__bb0_entry [style=dotted]
 	subgraph cluster_temp {
 		label=temp
-		temp [label=Exit]
 		temp__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -272,7 +258,6 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %6</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		temp__bb0_entry -> temp
 	}
 }
 
@@ -281,17 +266,15 @@ digraph {
 :b shell 23
 cat build/fibonacci.dot
 :i returncode 0
-:b stdout 8915
+:b stdout 8700
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
 		label=alloc
-		alloc [label=Exit]
 	}
 	"fibonacci.sf__bb2_while_then" -> print_int__bb0_entry [style=dotted]
 	subgraph "cluster_fibonacci.sf" {
 		label="fibonacci.sf"
-		"fibonacci.sf" [label=Exit]
 		"fibonacci.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -332,11 +315,9 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		"fibonacci.sf__bb3_while_end" -> "fibonacci.sf"
 	}
 	subgraph cluster_write {
 		label=write
-		write [label=Exit]
 		write__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -346,13 +327,11 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		write__bb0_entry -> write
 	}
 	print_int__bb0_entry -> alloc [style=dotted]
 	print_int__bb4_while_end -> write__bb0_entry [style=dotted]
 	subgraph cluster_print_int {
 		label=print_int
-		print_int [label=Exit]
 		print_int__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -404,7 +383,6 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %6</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		print_int__bb4_while_end -> print_int
 	}
 }
 
@@ -413,19 +391,17 @@ digraph {
 :b shell 18
 cat build/main.dot
 :i returncode 0
-:b stdout 9303
+:b stdout 9069
 // Control Flow Graph
 digraph {
 	subgraph cluster_alloc {
 		label=alloc
-		alloc [label=Exit]
 	}
 	"main.sf__bb0_entry" -> print__bb0_entry [style=dotted]
 	"main.sf__bb0_entry" -> alloc [style=dotted]
 	"main.sf__bb0_entry" -> copy__bb0_entry [style=dotted]
 	subgraph "cluster_main.sf" {
 		label="main.sf"
-		"main.sf" [label=Exit]
 		"main.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -466,11 +442,9 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		"main.sf__bb3_while_end" -> "main.sf"
 	}
 	subgraph cluster_write {
 		label=write
-		write [label=Exit]
 		write__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -480,11 +454,9 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		write__bb0_entry -> write
 	}
 	subgraph cluster_copy {
 		label=copy
-		copy [label=Exit]
 		copy__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -525,12 +497,10 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		copy__bb3_while_end -> copy
 	}
 	print__bb0_entry -> write__bb0_entry [style=dotted]
 	subgraph cluster_print {
 		label=print
-		print [label=Exit]
 		print__bb0_entry [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -540,7 +510,6 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret %3</TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		print__bb0_entry -> print
 	}
 }
 
@@ -549,12 +518,11 @@ digraph {
 :b shell 19
 cat build/macos.dot
 :i returncode 0
-:b stdout 577
+:b stdout 513
 // Control Flow Graph
 digraph {
 	subgraph "cluster_macos.sf" {
 		label="macos.sf"
-		"macos.sf" [label=Exit]
 		"macos.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -564,7 +532,6 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		"macos.sf__bb0_entry" -> "macos.sf"
 	}
 }
 
@@ -573,12 +540,11 @@ digraph {
 :b shell 18
 cat build/core.dot
 :i returncode 0
-:b stdout 571
+:b stdout 510
 // Control Flow Graph
 digraph {
 	subgraph "cluster_core.sf" {
 		label="core.sf"
-		"core.sf" [label=Exit]
 		"core.sf__bb0_entry" [label=<
                     <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0">
                         <TR><TD BGCOLOR="lightgray"><B>bb0_entry</B></TD></TR>
@@ -588,7 +554,6 @@ digraph {
                         <TR><TD ALIGN="LEFT">ret </TD></TR>
                     </TABLE>
                 > shape=plaintext]
-		"core.sf__bb0_entry" -> "core.sf"
 	}
 }
 

@@ -1,5 +1,8 @@
 from typing import Any, Optional
 
+import errors
+from location import Location
+
 TOKENS1 = {
     # Arithmetic operators
     '+', '-', '*', '/', '%',
@@ -77,28 +80,6 @@ KEYWORDS = {
     "where",
     "while"
 }
-
-
-class Location:
-    Self = 'Location'
-
-    def __init__(self, index: int, row: int, col: int):
-        self.index = index
-        self.row = row
-        self.col = col
-
-    def next(self, char: str) -> Self:
-        return self.next_row() if char == '\n' else self.next_col()
-
-    def next_row(self) -> Self:
-        return Location(self.index + 1, self.row + 1, 1)
-
-    def next_col(self, count=1) -> Self:
-        return Location(self.index + count, self.row, self.col + count)
-
-    def __repr__(self):
-        return f'Location(index={self.index}, row={self.row}, col={self.col})'
-
 
 class Token:
     KIND_WITH_DATA = {'ident', 'string', 'number', 'real'}
@@ -263,7 +244,7 @@ class Lexer:
         return self.next()
 
     @staticmethod
-    def lex(source) -> list[Token]:
+    def lex(name, source) -> list[Token]:
         self = Lexer(source)
 
         char, begin = self.next()
@@ -312,7 +293,7 @@ class Lexer:
                     self.tokens.append(Token(char, begin, self.location))
                     char, begin = self.next()
                 else:
-                    raise RuntimeError(f'Invalid token {char}')
+                    raise errors.error(name, source, begin, end, f'Invalid token {char}\n')
 
         if len(self.expected_delimiter) != 0:
             raise RuntimeError('Missing delimiters ' + ', '.join(self.expected_delimiter))
@@ -325,62 +306,25 @@ class Lexer:
 
 class TokenStream:
     def __init__(self, source, tokens, name):
-        self.__current = 0
-        self.__source = source
-        self.__tokens = tokens
-        self.__name = name
-
-    def surrounding_lines_of(self, token: Token) -> tuple[str, str, str]:
-        source = self.__source
-        idx = token.begin.index
-
-        def find_line_bounds(index: int) -> tuple[int, int]:
-            start = index
-            while start > 0 and source[start - 1] != '\n':
-                start -= 1
-            end = index
-            while end < len(source) and source[end] != '\n':
-                end += 1
-            return start, end
-
-        # Current line
-        curr_start, curr_end = find_line_bounds(idx)
-        current_line = source[curr_start:curr_end]
-
-        # Previous line
-        prev_line = ""
-        if curr_start > 0:
-            prev_end = curr_start - 1  # skip the newline
-            prev_start = prev_end
-            while prev_start > 0 and source[prev_start - 1] != '\n':
-                prev_start -= 1
-            prev_line = source[prev_start:prev_end]
-
-        # Next line
-        next_line = ""
-        if curr_end < len(source):
-            next_start = curr_end + 1 if source[curr_end] == '\n' else curr_end
-            next_end = next_start
-            while next_end < len(source) and source[next_end] != '\n':
-                next_end += 1
-            next_line = source[next_start:next_end]
-
-        return prev_line, current_line, next_line
+        self._current = 0
+        self._source = source
+        self._tokens = tokens
+        self._name = name
 
     def previous(self):
-        if self.__current == 0:
+        if self._current == 0:
             return None
-        return self.__tokens[self.__current - 1]
+        return self._tokens[self._current - 1]
 
     def previous_is(self, kind):
         return self.previous() and self.previous().kind == kind
 
     def peek_many(self, count=1) -> list[Token]:
-        tokens = self.__tokens[self.__current:self.__current + count]
+        tokens = self._tokens[self._current:self._current + count]
         return tokens
 
     def peek(self) -> Token:
-        token = self.__tokens[self.__current]
+        token = self._tokens[self._current]
         return token
 
     def peek_if(self, expected) -> bool:
@@ -400,9 +344,9 @@ class TokenStream:
     def next(self, expect=None) -> Token:
         token = self.peek()
         if expect and expect != token.kind:
-            raise RuntimeError(f'{self.__name}:{token.begin.row}:{token.begin.col}: Expected {expect}, got unexpected token {token}')
+            raise RuntimeError(f'{self._name}:{token.begin.row}:{token.begin.col}: Expected {expect}, got unexpected token {token}')
         if token.kind != 'eof':
-            self.__current += 1
+            self._current += 1
         return token
 
     def next_if(self, expect) -> Optional[Token]:
@@ -410,13 +354,13 @@ class TokenStream:
         if expect != token.kind:
             return None
         if token.kind != 'eof':
-            self.__current += 1
+            self._current += 1
         return token
 
     def next_if_any(self, *expects) -> Optional[Token]:
         token = self.peek()
         if token.kind in expects:
-            self.__current += 1
+            self._current += 1
             return token
         return None
 
@@ -424,7 +368,7 @@ class TokenStream:
         count = len(expects)
         tokens = self.peek_many(count)
         if all(t.kind == e for t, e in zip(tokens, expects)):
-            self.__current += count
+            self._current += count
             return tokens
         return [None] * count
 
@@ -435,7 +379,7 @@ class TokenStream:
             return token.end.row == self.peek().begin.row
 
     def has_more(self) -> bool:
-        return self.__current + 1 < len(self.__tokens)
+        return self._current + 1 < len(self._tokens)
 
 
 def main():
@@ -447,7 +391,7 @@ def main():
     # do_things: (x: int, y: int) -> int { 10 + 10 }
     """
 
-    tokens = Lexer.lex(source)
+    tokens = Lexer.lex('lexer.py', source)
     print(tokens)
 
 
