@@ -293,7 +293,7 @@ class Lexer:
                     self.tokens.append(Token(char, begin, self.location))
                     char, begin = self.next()
                 else:
-                    raise errors.error(name, source, begin, end, f'Invalid token {char}\n')
+                    raise errors.error(name, source, begin, end, f'Invalid token {char}')
 
         if len(self.expected_delimiter) != 0:
             raise RuntimeError('Missing delimiters ' + ', '.join(self.expected_delimiter))

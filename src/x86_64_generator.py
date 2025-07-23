@@ -33,6 +33,7 @@ class X86_64_Generator:
         self.regs = self.scratch + self.save
 
         self.code = ''
+        self.stack_size = 0
 
     def type_of(self, function, code) -> Type:
         return self.types[function.name][code.dest]
@@ -118,6 +119,7 @@ class X86_64_Generator:
         assert isinstance(ty, StructType), f'Invalid type {ty} to init'
         self.code += f'\t; {ty.name} {ty.fields}\n'
         self.code += f'\tsub rsp, {ty.size}\n'
+        self.stack_size += ty.size
         names = []
         for i, ref in enumerate(code.refs, start=1):
             name = ref if type(ref) == str else block.instructions[ref].dest
@@ -243,6 +245,8 @@ class X86_64_Generator:
         elif function.is_module:
             pass
         else:
+            # self.add_code('add', 'rsp', f'{self.stack_size}')
+            self.stack_size = 0
             self.add_code('ret')
             self.code += '\n'
 

@@ -41,10 +41,11 @@ def surrounding_lines_of(source, begin: Location) -> tuple[str, str, str]:
 
 
 def error(path, source, begin: Location, end: Location, message: str):
+    assert begin.row == end.row, "Begin and end locations must be on the same line"
     header = f'{path}:{begin.row}:{begin.col}: [ERROR]: '
     before, current, after = surrounding_lines_of(source, begin)
     source  = f'  {begin.row-1:02} | ' + before + '\n'
     source += f'  {begin.row+0:02} | ' + current + '\n'
     source += f'  {" " * max(2, int(math.log10(begin.row)))} | ' + '-' * (begin.col - 1) + '^' * max(1, end.col - begin.col) + '\n'
     source += f'  {begin.row+1:02} | ' + after + '\n'
-    return RuntimeError(header + message + source)
+    return RuntimeError(header + message + '\n' + source)

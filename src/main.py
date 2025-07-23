@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+
 from ir.passes import generate_graph_viz
 from lexer import Lexer
 from parser import Parser
@@ -24,11 +26,12 @@ def repl():
         try:
             tokens = Lexer.lex('repl', source)
             module = Parser.parse_module(source, tokens, 'repl')
+
+            remove_unused_functions(module)
             types = TypeChecker.check(module)
 
             validate_ir(module)
             check_if_in_ssa_form(module)
-            remove_unused_functions(module)
 
             code, data = X86_64_Generator.generate(module, types)
             machine_code, readable_code = make_macho_executable('repl', code, data)
@@ -68,6 +71,7 @@ def main():
         module = Parser.parse_module(source, tokens, path.name)
         validate_ir(module)
 
+    remove_unused_functions(module)
     types = TypeChecker.check(module)
     if not check_if_in_ssa_form(module):
         raise ValueError("Module is not in SSA form. Please run the SSA pass before type checking.")
@@ -75,7 +79,6 @@ def main():
     if args.check:
         return None
 
-    remove_unused_functions(module)
     graph_vis_source = generate_graph_viz(module)
     with open(f'build/{path.stem}.dot', 'wb') as file:
         file.write(graph_vis_source.encode())
@@ -96,4 +99,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except RuntimeError as e:
+        print(e, file=sys.stderr)

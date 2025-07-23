@@ -2,6 +2,7 @@ import sys
 
 import errors
 from ir import Op
+from location import Location
 from type import *
 
 
@@ -10,7 +11,9 @@ from type import *
 
 
 class TypeChecker:
-    def __init__(self, functions, data, constants, user_types):
+    def __init__(self, name, source, functions, data, constants, user_types):
+        self.name = name
+        self.source = source
         self.functions = functions
         self.data = data
         self.constants = constants
@@ -75,7 +78,7 @@ class TypeChecker:
         data = module.data
         constants = module.constants
         user_types = module.types
-        self = TypeChecker(functions, data, constants, user_types)
+        self = TypeChecker(module.name, module.source, functions, data, constants, user_types)
         types = self.check_()
         for func_name, env in types.items():
             for name, t in env.items():
@@ -84,8 +87,8 @@ class TypeChecker:
                     for block in func.blocks:
                         for c in block.instructions:
                             if c.dest == name:
-                                raise errors.error(module.name, module.source, c.token, f"Type inference failed for {func_name} {name}. Type is still inferred.\n")
-                    raise RuntimeError(f"Type inference failed for {func_name} {name}. Type is still inferred.")
+                                raise errors.error(module.name, module.source, c.token.begin, c.token.end, f"Type inference failed for {func_name} {name}. Type is still inferred.")
+                    raise errors.error(self.name, self.source, Location(0, 1, 1), Location(0, 1, 1), f"Type inference failed for {func_name} {name}. Type is still inferred.")
         return types
 
     def check_(self) -> dict[str, dict[str, Type]]:
@@ -105,13 +108,16 @@ class TypeChecker:
                 elif code.op == Op.ACCESS:
                     obj = self.type_of(block, code.obj())
                     attr = code.attr()
-                    self.env[code.dest] = obj.get_attribute(attr)
+                    try:
+                        self.env[code.dest] = obj.get_attribute(attr)
+                    except AttributeError:
+                        raise errors.error(self.name, self.source, code.token.begin, code.token.end, f"Cannot access attribute '{attr}' of {obj}.")
                 elif code.op == Op.DECL:
                     if code.refs:
                         a = self.lookup_type(code.type())
                         b = self.type_of(block, code.expr())
                         if not b.is_subtype_of(a):
-                            raise RuntimeError(f'Type error between {a} and {b}')
+                            raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {a} and {b}')
                         if isinstance(a, InferredType):
                             self.env[code.dest] = b
                         else:
@@ -125,20 +131,23 @@ class TypeChecker:
                 elif code.op == Op.ASSIGN:
                     a = self.type_of(block, code.target())
                     b = self.type_of(block, code.expr())
-                    if not b.is_subtype_of(a): raise RuntimeError(f'Type error between {a} and {b}')
+                    if not b.is_subtype_of(a):
+                        raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {a} and {b}')
                 elif code.op == Op.LABEL:
                     pass
                 elif code.op == Op.CALL:
-                    f = self.functions[code.args[0]]
+                    f = self.functions.get(code.args[0])
+                    if f is None:
+                        raise errors.error(self.name, self.source, code.token.begin, code.token.end, f"Function '{code.args[0]}' not found.")
                     args = code.refs[:]
                     if len(f.params) != len(args):
-                        raise RuntimeError(f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
+                        raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Passing wrong amount of arguments to {f.name}. Expected {len(f.params)}, but got {len(args)}')
                     for i, (name, t) in enumerate(f.params.items()):
                         a = self.lookup_type(t[0])
                         b = self.type_of(block, args[i])
                         if not b.is_subtype_of(a):
                             print(f'Error in {function.name} calling {f.name} at argument {i} ({name})', file=sys.stderr)
-                            raise RuntimeError(f'Type error between {a} and {b}')
+                            raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {a} and {b}')
                     if len(f.returns) == 0:
                         self.env[code.dest] = self.builtins[None]
                     elif len(f.returns) == 1:
@@ -160,7 +169,8 @@ class TypeChecker:
                     for (n, t), arg in zip(thing.fields.items(), code.refs):
                         a = t
                         b = self.type_of(block, arg)
-                        if not b.is_subtype_of(a): raise RuntimeError(f'Type error between {a} and {b}')
+                        if not b.is_subtype_of(a):
+                            raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {a} and {b}')
                     self.env[code.dest] = thing
                 elif code.op == Op.SYSCALL:
                     self.env[code.dest] = self.builtins[None] if code.dest not in self.env else self.env[code.dest]
@@ -189,7 +199,8 @@ class TypeChecker:
                     target = code.target()
                     obj = self.type_of(block, target)
                     to  = self.lookup_type(code.type())
-                    if not obj.is_subtype_of(to): raise RuntimeError(f'Type error between {obj} and {to}')
+                    if not obj.is_subtype_of(to):
+                        raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {obj} and {to}')
                     dest = target if isinstance(target, str) else block.instructions[target].dest
                     self.env[dest] = to
                     self.env[code.dest] = to
@@ -204,7 +215,7 @@ class TypeChecker:
                         if ((len(function.returns) == 1 and function.returns[0][1] == 'void') or (len(function.returns) == 0)) and len(code.refs) == 0:
                             self.env[code.dest] = self.builtins['void']
                         else:
-                            raise RuntimeError(f"Returning wrong amount of returns to '{function.name}'. Expected {len(function.returns)}, but got {len(code.refs)}")
+                            raise errors.error(self.name, self.source, code.token.begin, code.token.end, f"Returning wrong amount of returns to '{function.name}'. Expected {len(function.returns)}, but got {len(code.refs)}")
                     elif len(function.returns) == 0 and len(code.refs) == 0:
                         self.env[code.dest] = self.builtins['void']
 
@@ -212,7 +223,7 @@ class TypeChecker:
                         a = self.lookup_type(ret[1])
                         b = self.type_of(block, arg)
                         if not b.is_subtype_of(a):
-                            raise RuntimeError(f'Type error between {a} and {b}')
+                            raise errors.error(self.name, self.source, code.token.begin, code.token.end, f'Type error between {a} and {b}')
                         self.set_type(block, arg, a)
                 else:
                     assert False, f'Unknown instruction {code}'

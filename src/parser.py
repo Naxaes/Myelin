@@ -198,7 +198,7 @@ class Parser(TokenStream):
         if self.deferred_lookup:
             error = ''
             for constant, token in self.deferred_lookup.items():
-                error += str(errors.error(self._name, self._source, token, f"'{constant}' was never declared\n"))
+                error += str(errors.error(self._name, self._source, token.begin, token.end, f"'{constant}' was never declared"))
             raise RuntimeError(error)
         self.block.terminator = Code(Op.RET, token=self.peek())
         return Module(name, source, self.functions, self.data, self.constants, self.types, self.imports)
@@ -214,7 +214,7 @@ class Parser(TokenStream):
             elif t1.kind == '=':
                 ident, comptime = self.parse_ident()
                 if comptime:
-                    raise errors.error(self._name, self._source, t0, f"Unknown variable or trying to assign to a comptime value '{ident}'\n")
+                    raise errors.error(self._name, self._source, t0.begin, t0.end, f"Unknown variable or trying to assign to a comptime value '{ident}'")
                 return self.parse_assign(target=ident)
             elif t1.kind == '[':
                 ident, comptime = self.parse_ident()
@@ -223,7 +223,7 @@ class Parser(TokenStream):
             elif t1.kind == '(':
                 return self.parse_func_call()
             else:
-                raise errors.error(self._name, self._source, t0, f"Unknown stmt type '{t1.kind}'\n")
+                raise errors.error(self._name, self._source, t0.begin, t0.end, f"Unknown stmt type '{t1.kind}'")
         elif t0.kind == 'if':
             return self.parse_if()
         elif t0.kind == 'while':
@@ -237,7 +237,7 @@ class Parser(TokenStream):
         elif t0.kind == 'import':
             return self.parse_import()
         else:
-            raise RuntimeError(f'Unknown token {t0}')
+            raise errors.error(self._name, self._source, t0.begin, t0.end, f"Unknown token '{t0.kind}'")
 
     def parse_import(self):
         _ = self.next(expect='import')
@@ -283,7 +283,7 @@ class Parser(TokenStream):
         for name in names:
             decl = name.data.decode()
             if prev := self.scope.find(decl):
-                raise errors.error(self._name, self._source, name, f"Duplicate declaration for '{name.data.decode()}'\n")
+                raise errors.error(self._name, self._source, name.begin, name.end, f"Duplicate declaration for '{name.data.decode()}'")
             else:
                 self.scope.add(decl)
 

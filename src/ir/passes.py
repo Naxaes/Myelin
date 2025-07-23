@@ -17,12 +17,16 @@ def remove_unused_functions(module: Module, logger=None):
 
         graph[function.name] = callers
 
+    # TODO: Ir code doesn't have an entry point at the moment.
+    if not entry:
+        return
+
     visited = set()
     queue = [entry.name]
     while queue:
         node = queue.pop(0)
         visited.add(node)
-        for n in graph[node]:
+        for n in graph.get(node, []):
             if n not in visited:
                 queue.append(n)
 

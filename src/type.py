@@ -259,7 +259,7 @@ class ArrayType(Type):
         return self.is_equal(other)
 
     def __repr__(self):
-        return f"{self.qualifier_str()} {str(self.element_type)}[{self.length}]".strip()
+        return f"{self.qualifier_str()} [{self.length}]{str(self.element_type)}".strip()
 
 # --- Function Type ---
 class FunctionType(Type):
